@@ -25,3 +25,4 @@ TODO:
 
 Resources used:
 https://depth-first.com/articles/2021/12/16/a-beginners-guide-to-parsing-in-rust/
+https://utrechtuniversity.github.io/infob3tc/downloads/MAIN.pdf
