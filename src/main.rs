@@ -71,31 +71,34 @@ fn main() {
     //
     // println!("File contains \n '{}'", contents);
 
-    let p = Parser::symbol("A").run(vec!["A", "B", "C", "D"]);
-    let q = Parser::any_symbol().run(vec!["B", "C", "D"]);
-    println!("{:?} {:?}", p, q);
+    // let p = Parser::symbol("A").run(vec!["A", "B", "C", "D"]);
+    let p = Parser::symbol("A");
+    // let q = Parser::any_symbol().run(vec!["B", "C", "D"]);
+    let f = |x: &str| x.len();
+    let fp = fmap(&f, &p).run(vec!["A", "B", "C", "D"]);
+    println!("{:?} ", fp);
 }
 
 // parsing
-struct Parser<Sym, Res>
+struct Parser<'a, Sym, Res>
 {
-    parser: Box<dyn Fn(Vec<Sym>) -> Vec<(Res, Vec<Sym>)>>,
+    parser: Box<dyn Fn(Vec<Sym>) -> Vec<(Res, Vec<Sym>)> + 'a>,
 }
 
 /// consumes a list of tokens and returns a
 /// list of (partial) parses
 /// INPUT :: [Symbol]
 /// OUTPUT:: [(Result, [Symbol])]
-impl<Sym, Res> Parser<Sym, Res>
+impl<'a ,Sym, Res> Parser<'a, Sym, Res>
 {
-    fn run(self, input: Vec<Sym>) -> Vec<(Res, Vec<Sym>)> {
+    fn run(&self, input: Vec<Sym>) -> Vec<(Res, Vec<Sym>)> {
         if input.is_empty() {
             return vec![];
         }
         (self.parser)(input)
     }
 }
-impl<Sym> Parser<Sym, Sym>
+impl<'a, Sym> Parser<'a, Sym, Sym>
 where Sym: PartialEq + Clone + Copy + 'static
 {
     /// INPUT :: Symbol
@@ -129,6 +132,21 @@ where Sym: PartialEq + Clone + Copy + 'static
                 }
             }),
         }
+    }
+}
+// parser combinators
+fn fmap<'a, A, B, Sym>(
+    f: &'a dyn Fn(A) -> B,
+    p: &'a Parser<Sym,A>
+) -> Parser<'a, Sym, B>
+{
+    Parser {
+        parser: Box::new(move |xs: Vec<Sym>| {
+            p.run(xs)
+                .into_iter()
+                .map(|(y, ys)| ((f)(y), ys))
+                .collect::<Vec<_>>()
+        }),
     }
 }
 
