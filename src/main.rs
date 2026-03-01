@@ -72,11 +72,18 @@ fn main() {
     // println!("File contains \n '{}'", contents);
 
     // let p = Parser::symbol("A").run(vec!["A", "B", "C", "D"]);
+    let abc = vec!["A", "B", "C", "D"];
     let p = Parser::symbol("A");
-    // let q = Parser::any_symbol().run(vec!["B", "C", "D"]);
-    let f = |x: &str| x.len();
-    let fp = fmap(&f, &p).run(vec!["A", "B", "C", "D"]);
-    println!("{:?} ", fp);
+    let q = Parser::symbol("B");
+    fn f(a: &str,b: &str) -> String {
+        let mut res = String::from(a);
+        res.push_str(b);
+        res
+    }
+    // TODO, make macro?
+    let fp = fmap(move |a| move |b| f(a,b), &p);
+    let app = applicative(&fp, &q);
+    println!("{:?} ", app.run(abc));
 }
 
 // parsing
@@ -136,7 +143,7 @@ where Sym: PartialEq + Clone + Copy + 'static
 }
 // parser combinators
 fn fmap<'a, A, B, Sym>(
-    f: &'a dyn Fn(A) -> B,
+    f: impl Fn(A) -> B +'a,
     p: &'a Parser<Sym,A>
 ) -> Parser<'a, Sym, B>
 {
@@ -150,3 +157,23 @@ fn fmap<'a, A, B, Sym>(
     }
 }
 
+fn applicative<'a, A, B, Sym>(
+    p: &'a Parser<Sym,impl Fn(B) -> A + 'a>,
+    q: &'a Parser<Sym,B>
+) -> Parser<'a, Sym, A>
+{
+    Parser {
+        parser: Box::new(move |xs: Vec<Sym>| {
+            p.run(xs)
+                .into_iter()
+                .flat_map(|(f, ys)| 
+                    q.run(ys)
+                        .into_iter()
+                        .map(move |(r, zs)|
+                            ((f)(r), zs)
+                        )
+                )
+                .collect::<Vec<_>>()
+        }),
+    }
+}
