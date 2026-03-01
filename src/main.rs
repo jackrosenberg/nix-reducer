@@ -72,7 +72,8 @@ fn main() {
     // println!("File contains \n '{}'", contents);
 
     let p = Parser::symbol("A").run(vec!["A", "B", "C", "D"]);
-    println!("{:?}", p);
+    let q = Parser::any_symbol().run(vec!["B", "C", "D"]);
+    println!("{:?} {:?}", p, q);
 }
 
 // parsing
@@ -97,18 +98,31 @@ impl<Sym, Res> Parser<Sym, Res>
 impl<Sym> Parser<Sym, Sym>
 where Sym: PartialEq + Clone + Copy + 'static
 {
-    /// parses a single token of type S
-    /// and returns a list, [] if no
-    /// parse, [(S, [S])] if parse successful
     /// INPUT :: Symbol
     /// OUTPUT:: Symbol -> [(Result, [Symbol])]
     /// ex.:
     /// Parser::symbol("A").run(vec!["A","B","C","D"]) -> [("A", ["B", "C", "D"])]
-    /// symbol('e').parser.run([hello world]) -> []
+    /// Parser::symbol("A").run([hello world]) -> []
     fn symbol(a: Sym) -> Self {
         Self {
             parser: Box::new(move |input: Vec<Sym>| {
                 if input.is_empty() || a != input[0] {
+                    vec![]
+                } else {
+                    vec![(input[0], input[1..].to_vec())]
+                }
+            }),
+        }
+    }
+    /// INPUT :: ()
+    /// OUTPUT:: Symbol -> [(Result, [Symbol])]
+    /// ex.:
+    /// Parser::any_symbol().run(vec!["B","C","D"]) -> [("B", ["C", "D"])]
+    /// symbol('e').parser.run([hello world]) -> []
+    fn any_symbol() -> Self {
+        Self {
+            parser: Box::new(move |input: Vec<Sym>| {
+                if input.is_empty() {
                     vec![]
                 } else {
                     vec![(input[0], input[1..].to_vec())]
