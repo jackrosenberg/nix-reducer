@@ -62,8 +62,8 @@ struct AttrSet {
 
 fn main() {
     // take in command line args
-    let args: Vec<String> = env::args().collect();
-    dbg!(&args);
+    // let args: Vec<String> = env::args().collect();
+    // dbg!(&args);
     // let path = &args[1];
     // println!("Searching path '{}'", path);
     //
@@ -76,10 +76,7 @@ fn main() {
 }
 
 // parsing
-#[derive(Clone)]
 struct Parser<Sym, Res>
-where
-    Parser<Sym, Res>: Clone,
 {
     parser: Box<dyn Fn(Vec<Sym>) -> Vec<(Res, Vec<Sym>)>>,
 }
@@ -89,8 +86,6 @@ where
 /// INPUT :: [Symbol]
 /// OUTPUT:: [(Result, [Symbol])]
 impl<Sym, Res> Parser<Sym, Res>
-where
-    Parser<Sym, Res>: Clone,
 {
     fn run(self, input: Vec<Sym>) -> Vec<(Res, Vec<Sym>)> {
         if input.is_empty() {
@@ -99,9 +94,8 @@ where
         (self.parser)(input)
     }
 }
-impl<'a> Parser<&'a str, String>
-where
-    Parser<&'a str, String>: Clone,
+impl<Sym> Parser<Sym, Sym>
+where Sym: PartialEq + Clone + Copy + 'static
 {
     /// parses a single token of type S
     /// and returns a list, [] if no
@@ -111,77 +105,16 @@ where
     /// ex.:
     /// Parser::symbol("A").run(vec!["A","B","C","D"]) -> [("A", ["B", "C", "D"])]
     /// symbol('e').parser.run([hello world]) -> []
-    fn symbol(a: &'static str) -> Self {
+    fn symbol(a: Sym) -> Self {
         Self {
-            parser: Box::new(move |input: Vec<&str>| {
+            parser: Box::new(move |input: Vec<Sym>| {
                 if input.is_empty() || a != input[0] {
                     vec![]
                 } else {
-                    vec![(input[0].to_string(), input[1..].to_vec())]
-                }
-            }),
-        }
-    }
-    fn anySymbol() -> Self {
-        Self {
-            parser: Box::new(|input: Vec<&str>| {
-                if input.is_empty() {
-                    vec![]
-                } else {
-                    vec![(input[0].to_string(), input[1..].to_vec())]
+                    vec![(input[0], input[1..].to_vec())]
                 }
             }),
         }
     }
 }
 
-// parser combinators
-
-/// fmap, looks inside the parser and applies function to res
-/// INPUT :: f: (a -> b), s: Parser Sym A
-/// OUTPUT:: Parser Sym B
-/// ex.:
-fn fmap<A: 'static, B: 'static, Sym: 'static>(
-    f: Box<dyn Fn(A) -> B>,
-    p: Parser<Sym, A>,
-) -> Parser<Sym, B>
-where
-    Parser<Sym, A>: Clone,
-    Parser<Sym, B>: Clone,
-{
-    Parser {
-        parser: Box::new(move |xs: Vec<Sym>| {
-            p.clone()
-                .run(xs)
-                .into_iter()
-                .map(|(y, ys)| ((f)(y), ys))
-                .collect::<Vec<_>>()
-        }),
-    }
-}
-
-fn combine<A: 'static, B: 'static, Sym: 'static>(
-    p: Parser<Sym, Box<dyn Fn(A) -> B>>,
-    q: Parser<Sym, A>,
-) -> Parser<Sym, B>
-where
-    Parser<Sym, A>: Clone,
-    Parser<Sym, B>: Clone,
-    Parser<Sym, Box<dyn Fn(A) -> B>>: Clone,
-{
-    Parser {
-        parser: Box::new(move |xs: Vec<Sym>| {
-            p.clone().run(xs)
-                .into_iter()
-                .flat_map(|(f, ys)| {
-                    q.clone().run(ys)
-                        .into_iter()
-                        .map(|(r, zs)| {
-                            ((f)(r), zs)
-                        }) 
-                        .collect::<Vec<_>>()
-                })
-                .collect::<Vec<_>>()
-        }),
-    }
-}
