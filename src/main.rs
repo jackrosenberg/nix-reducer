@@ -72,18 +72,26 @@ fn main() {
     // println!("File contains \n '{}'", contents);
 
     // let p = Parser::symbol("A").run(vec!["A", "B", "C", "D"]);
-    let abc = vec!["A", "B", "C", "D"];
-    let p = Parser::symbol("A");
-    let q = Parser::symbol("B");
-    fn f(a: &str,b: &str) -> String {
+    // let abc = vec!["A", "B", "C", "D"];
+    let abc = "ABCD".chars().map(|c| char::to_string(&c)).collect::<Vec<_>>();
+    let p = Parser::symbol(String::from("A"));
+    let q = Parser::symbol(String::from("B"));
+    fn c(s: &String) -> bool {
+        s == "C"
+    }
+    let s = Parser::satisfy(c);
+    fn f(a: &String, b: &String, c: &String) -> String {
+    // fn f(a: &str,b: &str) -> str {
         let mut res = String::from(a);
-        res.push_str(b);
+        res.push_str(&b);
+        res.push_str(&c);
         res
     }
     // TODO, make macro?
-    let fp = fmap(move |a| move |b| f(a,b), &p);
-    let app = applicative(&fp, &q);
-    println!("{:?} ", app.run(abc));
+    let parser = fmap(move |a| move |b| move |c| f(&a,&b,&c), &p);
+    let parser = applicative(&parser, &q);
+    let parser = applicative(&parser, &s);
+    println!("{:?} ", parser.run(abc));
 }
 
 // parsing
@@ -104,9 +112,10 @@ impl<'a ,Sym, Res> Parser<'a, Sym, Res>
         }
         (self.parser)(input)
     }
+
 }
 impl<'a, Sym> Parser<'a, Sym, Sym>
-where Sym: PartialEq + Clone + Copy + 'static
+where Sym: PartialEq + Clone + 'a
 {
     /// INPUT :: Symbol
     /// OUTPUT:: Symbol -> [(Result, [Symbol])]
@@ -119,7 +128,7 @@ where Sym: PartialEq + Clone + Copy + 'static
                 if input.is_empty() || a != input[0] {
                     vec![]
                 } else {
-                    vec![(input[0], input[1..].to_vec())]
+                    vec![(input[0].clone(), input[1..].to_vec())]
                 }
             }),
         }
@@ -135,12 +144,31 @@ where Sym: PartialEq + Clone + Copy + 'static
                 if input.is_empty() {
                     vec![]
                 } else {
-                    vec![(input[0], input[1..].to_vec())]
+                    vec![(input[0].clone(), input[1..].to_vec())]
                 }
             }),
         }
     }
+    /// INPUT :: (Symbol -> bool)
+    /// OUTPUT:: Symbol -> [(Result, [Symbol])]
+    /// ex.:
+    /// Parser::satisfy().run(vec!["B","C","D"]) -> [("B", ["C", "D"])]
+    fn satisfy(
+        c: impl Fn(&Sym) -> bool +'a,
+    ) -> Self
+    {
+        Self {
+            parser: Box::new(move |input: Vec<Sym>| {
+                if input.is_empty() || !(c)(&input[0].clone()) {
+                    vec![]
+                } else {
+                    vec![(input[0].clone(), input[1..].to_vec())]
+                }
+            })
+        }
+    }
 }
+
 // parser combinators
 fn fmap<'a, A, B, Sym>(
     f: impl Fn(A) -> B +'a,
