@@ -17,31 +17,36 @@ fn main() {
 
     // let p = Parser::symbol("A").run(vec!["A", "B", "C", "D"]);
     // let abc = vec!["A", "B", "C", "D"];
-    let abc = "ABCD".chars().map(|c| char::to_string(&c)).collect::<Vec<_>>();
+    let abc = "ABCDEFGHIGJK".chars().map(|c| char::to_string(&c)).collect::<Vec<_>>();
     let abc = abc.iter().collect::<Vec<_>>();
     let a = String::from("A");
     let b = String::from("B");
+    let e = String::from("E");
 
     let p = Parser::symbol(&a);
     let q = Parser::symbol(&b);
+    let r = Parser::symbol(&e);
 
     fn c_or_d(s: &String) -> bool {
         s == "C" || s == "D"
     }
     let s = Parser::satisfy(c_or_d);
+    let ch = parser::choice(&p, &r);
 
-    fn f(a: &String, b: &String, c: &String, d: &String) -> String {
+    fn f(a: &String, b: &String, c: &String, d: &String, e: &String) -> String {
         let mut res = String::from(a);
         res.push_str(b);
         res.push_str(c);
         res.push_str(d);
+        res.push_str(e);
         res
     }
     // TODO, make macro?
-    let c1 = |a| move |b| move |c| move |d| f(a,b,c,d);
+    let c1 = |a| move |b| move |c| move |d| move |e| f(a,b,c,d,e);
     let parser = fmap(&c1, &p);
     let parser = applicative(&parser, &q);
     let parser = applicative(&parser, &s);
     let parser = applicative(&parser, &s);
-    println!("{:?} ", parser.run(abc));
+    let parser = applicative(&parser, &ch);
+    println!("{:?} ", parser.run(&abc));
 }

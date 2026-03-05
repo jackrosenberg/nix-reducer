@@ -1,6 +1,6 @@
 pub struct Parser<'a, Sym, Res>
 {
-    pub parser: Box<dyn Fn(Vec<Sym>) -> Vec<(Res, Vec<Sym>)> + 'a>,
+    pub parser: Box<dyn Fn(&Vec<Sym>) -> Vec<(Res, Vec<Sym>)> + 'a>,
 }
 
 /// consumes a list of tokens and returns a
@@ -9,7 +9,7 @@ pub struct Parser<'a, Sym, Res>
 /// OUTPUT:: [(Result, [Symbol])]
 impl<'a ,Sym, Res> Parser<'a, Sym, Res>
 {
-    pub fn run(&self, input: Vec<Sym>) -> Vec<(Res, Vec<Sym>)> {
+    pub fn run(&self, input: &Vec<Sym>) -> Vec<(Res, Vec<Sym>)> {
         if input.is_empty() {
             return vec![];
         }
@@ -27,7 +27,7 @@ where Sym: PartialEq + Clone + 'a
     /// Parser::symbol("A").run([hello world]) -> []
     pub fn symbol(a: Sym) -> Self {
         Self {
-            parser: Box::new(move |input: Vec<Sym>| {
+            parser: Box::new(move |input: &Vec<Sym>| {
                 if input.is_empty() || a != input[0] {
                     vec![]
                 } else {
@@ -43,7 +43,7 @@ where Sym: PartialEq + Clone + 'a
     /// symbol('e').parser.run([hello world]) -> []
     pub fn any_symbol() -> Self {
         Self {
-            parser: Box::new(move |input: Vec<Sym>| {
+            parser: Box::new(move |input: &Vec<Sym>| {
                 if input.is_empty() {
                     vec![]
                 } else {
@@ -61,7 +61,7 @@ where Sym: PartialEq + Clone + 'a
     ) -> Self
     {
         Self {
-            parser: Box::new(move |input: Vec<Sym>| {
+            parser: Box::new(move |input: &Vec<Sym>| {
                 if input.is_empty() || !(c)(input[0].clone()) {
                     vec![]
                 } else {
@@ -79,8 +79,8 @@ pub fn fmap<'a, A, B, Sym>(
 ) -> Parser<'a, Sym, B>
 {
     Parser {
-        parser: Box::new(move |xs: Vec<Sym>| {
-            p.run(xs)
+        parser: Box::new(move |xs: &Vec<Sym>| {
+            p.run(&xs)
                 .into_iter()
                 .map(|(y, ys)| ((f)(y), ys))
                 .collect::<Vec<_>>()
@@ -94,17 +94,30 @@ pub fn applicative<'a, A, B, Sym>(
 ) -> Parser<'a, Sym, A>
 {
     Parser {
-        parser: Box::new(move |xs: Vec<Sym>| {
-            p.run(xs)
+        parser: Box::new(move |xs: &Vec<Sym>| {
+            p.run(&xs)
                 .into_iter()
                 .flat_map(|(f, ys)| 
-                    q.run(ys)
+                    q.run(&ys)
                         .into_iter()
                         .map(move |(r, zs)|
                             ((f)(r), zs)
                         )
                 )
                 .collect::<Vec<_>>()
+        }),
+    }
+}
+
+pub fn choice<'a, Sym, Res>(
+    p: &'a Parser<Sym,Res>,
+    q: &'a Parser<Sym,Res>
+) -> Parser<'a, Sym, Res>
+where Res: Clone, Sym: Clone
+{
+    Parser {
+        parser: Box::new(move |xs: &Vec<Sym>| {
+            [p.run(&xs),q.run(&xs)].concat() // expensive, maybe refactor
         }),
     }
 }
