@@ -57,12 +57,12 @@ where Sym: PartialEq + Clone + 'a
     /// ex.:
     /// Parser::satisfy().run(vec!["B","C","D"]) -> [("B", ["C", "D"])]
     pub fn satisfy(
-        c: impl Fn(&Sym) -> bool +'a,
+        c: impl Fn(Sym) -> bool +'a,
     ) -> Self
     {
         Self {
             parser: Box::new(move |input: Vec<Sym>| {
-                if input.is_empty() || !(c)(&input[0].clone()) {
+                if input.is_empty() || !(c)(input[0].clone()) {
                     vec![]
                 } else {
                     vec![(input[0].clone(), input[1..].to_vec())]
