@@ -34,12 +34,7 @@ fn main() {
     let ch = parser::choice(&p, &r);
 
     fn f(a: &String, b: &String, c: &String, d: &String, e: &String) -> String {
-        let mut res = String::from(a);
-        res.push_str(b);
-        res.push_str(c);
-        res.push_str(d);
-        res.push_str(e);
-        res
+        format!("{a}{b}{c}{d}{e}")
     }
     // TODO, make macro?
     let c1 = |a| move |b| move |c| move |d| move |e| f(a,b,c,d,e);

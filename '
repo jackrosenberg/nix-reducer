@@ -4,9 +4,6 @@ pub struct Parser<'a, Sym, Res>
 }
 
 impl<'a ,Sym, Res> Parser<'a, Sym, Res>
-where 
-    Sym: Clone,
-    Res: Clone
 {
     /// consumes a list of tokens and returns a
     /// list of (partial) parses
@@ -18,17 +15,15 @@ where
         }
         (self.parser)(input)
     }
-    pub fn succeed(a: &'a Res) -> Self {
+    pub fn succeed(a: Res) -> Self {
         Self { 
             parser: Box::new(move |input: &Vec<Sym>| {
-                 vec![(a.clone(), input.clone())]
+                 vec![(a, *input)]
             }),
         }
     }
 
 }
-
-
 impl<'a, Sym> Parser<'a, Sym, Sym>
 where Sym: PartialEq + Clone + 'a
 {
@@ -93,13 +88,9 @@ where Sym: PartialEq + Clone + 'a
 /// ex.:
 /// fmap(concat(), applicative(symbol a, symbol b)).run("ab") -> [("ab"), []]
 pub fn fmap<'a, A, B, Sym>(
-    f: &'a impl Fn(A) -> B,
+    f: &'a impl Fn(A) -> B ,
     p: &'a Parser<Sym,A>
 ) -> Parser<'a, Sym, B>
-where 
-    A: Clone,
-    B: Clone,
-    Sym: Clone
 {
     Parser {
         parser: Box::new(move |xs: &Vec<Sym>| {
@@ -119,13 +110,9 @@ where
 /// ex.:
 /// fmap(concat(), applicative(symbol a, symbol b)).run("ab") -> [("ab"), []]
 pub fn applicative<'a, A, B, Sym>(
-    p: &'a Parser<Sym,impl Clone + Fn(B) -> A + 'a>,
+    p: &'a Parser<Sym,impl Fn(B) -> A + 'a>,
     q: &'a Parser<Sym,B>
 ) -> Parser<'a, Sym, A>
-where 
-    A: Clone,
-    B: Clone,
-    Sym: Clone
 {
     Parser {
         parser: Box::new(move |xs: &Vec<Sym>| {
@@ -154,9 +141,7 @@ pub fn choice<'a, Sym, Res>(
     p: &'a Parser<Sym,Res>,
     q: &'a Parser<Sym,Res>
 ) -> Parser<'a, Sym, Res>
-where 
-    Sym: Clone,
-    Res: Clone,
+where Res: Clone, Sym: Clone
 {
     Parser {
         parser: Box::new(move |xs: &Vec<Sym>| {
@@ -167,24 +152,13 @@ where
 pub fn many<'a, Sym, Res>(
     p: &'a Parser<Sym,Res>
 ) -> Parser<'a, Sym, Vec<Res>>
-where
-    Res: Clone,
-    Sym: Clone
+where Res: Clone, Sym: Clone
 {
-    // prepends x to xs
-    fn f<Sym>(x: &Sym, xs: Vec<Sym>) -> Vec<Sym>
-    where
-        Sym: Clone
-    {
-        let mut res = xs.to_vec();
-        res.insert(0, x.clone());
-        res
-    };
-    let v = vec![];
-    let f = move |x: Res| move |xs: Vec<Res>| f(&x,xs);
-    let p = applicative(&fmap(&f, p), &many(p));
-    let base = Parser::succeed(&v);
-    choice(&p, &base)
-    // fn many_rec_helper() {
-    // }
+    // takes a Sym and Vec<Sym>
+    let f: impl Fn(&Sym) -> impl Fn(Vec<&Sym>) = |x| |xs| { 
+        let res = xs.clone();
+        &res.insert(0, x);
+    }
+    choice(&Parser::succeed(vec![]), &Parser::succeed(vec![]))
+    // choice(fmap(f, applicative(&p, many(p))), Parser::succeed(vec![]))
 }
