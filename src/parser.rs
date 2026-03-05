@@ -74,7 +74,7 @@ where Sym: PartialEq + Clone + 'a
 
 // parser combinators
 pub fn fmap<'a, A, B, Sym>(
-    f: impl Fn(A) -> B +'a,
+    f: &'a impl Fn(A) -> B ,
     p: &'a Parser<Sym,A>
 ) -> Parser<'a, Sym, B>
 {

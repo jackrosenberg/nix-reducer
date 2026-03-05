@@ -2,7 +2,7 @@ use std::{env, fs};
 
 pub mod parser; 
 pub mod types; 
-use crate::{parser::{Parser, applicative, fmap}, types};
+use crate::{parser::{Parser, applicative, fmap}};
 
 fn main() {
     // take in command line args
@@ -25,14 +25,16 @@ fn main() {
     }
     let s = Parser::satisfy(c);
     fn f(a: &String, b: &String, c: &String) -> String {
-    // fn f(a: &str,b: &str) -> str {
+    // fn f(a: &String, b: &String) -> String {
         let mut res = String::from(a);
         res.push_str(&b);
         res.push_str(&c);
         res
     }
     // TODO, make macro?
-    let parser = fmap(move |a| move |b| move |c| f(&a,&b,&c), &p);
+    let c1 = |a| { |b| { |c| f(a,b,c) }};
+    let parser = fmap(&c1, &p);
+    // let parser = fmap(move |a| move |b| f(&a,&b), &p);
     let parser = applicative(&parser, &q);
     let parser = applicative(&parser, &s);
     println!("{:?} ", parser.run(abc));
