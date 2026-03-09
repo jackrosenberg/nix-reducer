@@ -3,6 +3,8 @@ use std::{
     sync::Arc,
 };
 
+pub mod helpers;
+
 pub struct Parser<'a, Sym, Res> {
     pub parser: Arc<dyn Fn(&Vec<Sym>) -> Vec<(Res, Vec<Sym>)> + 'a>,
 }
@@ -17,7 +19,7 @@ impl<'a, Sym, Res> Clone for Parser<'a, Sym, Res> {
 
 impl<'a, Sym, Res> Parser<'a, Sym, Res>
 where
-    Sym: Clone + Debug + Display,
+    Sym: Clone,
     Res: Clone + 'a,
 {
     /// consumes a list of tokens and returns a
@@ -39,7 +41,7 @@ where
 
 impl<'a, Sym> Parser<'a, Sym, Sym>
 where
-    Sym: PartialEq + Clone + Debug + Display + 'a,
+    Sym: PartialEq + Clone + 'a,
 {
     /// INPUT :: Symbol
     /// OUTPUT:: Symbol -> [(Result, [Symbol])]
@@ -89,6 +91,27 @@ where
         }
     }
 }
+/// helper function that parses a word
+/// INPUT :: Symbol
+/// OUTPUT:: Symbol -> [(Result, [Symbol])]
+/// ex.: TODO
+impl<'a, Sym> Parser<'a, Sym, Vec<Sym>>
+where
+    Sym: PartialEq + Clone + 'a,
+{
+    pub fn token(word: &'a Vec<Sym>) -> Self {
+        Self {
+            parser: Arc::new(move |input: &Vec<Sym>| {
+                let k = word.len();
+                if input.is_empty() || &input[..k] != word {
+                    vec![]
+                } else {
+                    vec![(input[..k].to_vec(), input[k..].to_vec())]
+                }
+            }),
+        }
+    }
+}
 
 // parser combinators
 
@@ -98,20 +121,35 @@ where
 /// OUTPUT:: Symbol -> [(B, [Symbol])]
 /// ex.:
 /// fmap(concat(), applicative(symbol a, symbol b)).run("ab") -> [("ab"), []]
-pub fn fmap<'a, A, B, Sym>(f: impl Fn(A) -> B + 'a, p: Parser<'a, Sym, A>) -> Parser<'a, Sym, B>
+pub fn fmap<'a, A, B, Sym>(
+    f: impl Fn(A) -> B + 'a,
+    p: Parser<'a, Sym, A>
+) -> Parser<'a, Sym, B>
 where
     A: Clone + 'a,
     B: Clone,
-    Sym: Clone + Debug + Display + 'a,
+    Sym: Clone + 'a,
 {
     Parser {
         parser: Arc::new(move |xs: &Vec<Sym>| {
-            p.run(&xs)
+            p.run(xs)
                 .into_iter()
                 .map(|(y, ys)| ((f)(y), ys))
                 .collect::<Vec<_>>()
         }),
     }
+}
+// ignore the result of the parser and return a const
+pub fn fmap_l<'a, A, B, Sym>(
+    r: B,
+    p: Parser<'a, Sym, A>
+) -> Parser<'a, Sym, B>
+where
+    A: Clone + 'a,
+    B: Clone + 'a,
+    Sym: Clone + 'a,
+{
+    fmap(move |_| r.clone(), p)
 }
 
 /// Takes two parsers, one of type (A->B)
@@ -128,19 +166,51 @@ pub fn applicative<'a, A, B, Sym>(
 where
     A: Clone,
     B: Clone + 'a,
-    Sym: Clone + Debug + Display + 'a,
+    Sym: Clone + 'a,
 {
     Parser {
         parser: Arc::new(move |xs: &Vec<Sym>| {
-            p.run(&xs)
+            p.run(xs)
                 .into_iter()
                 .flat_map(|(f, ys)| q.run(&ys).into_iter().map(move |(r, zs)| ((f)(r), zs)))
                 .collect::<Vec<_>>()
         }),
     }
 }
+// TODO
+// rahhh this function almost got me, 
+// haskell and it's glorious type system. 
+pub fn applicative_l<'a, A, B, Sym>(
+    p: Parser<'a, Sym, impl Clone + Fn(B) -> A + 'a>,
+    q: Parser<'a, Sym, B>,
+) -> Parser<'a, Sym, impl Clone + Fn(B) -> A>
+where
+    A: Clone + 'a,
+    B: Clone + 'a,
+    Sym: Clone + 'a,
+{
+    fmap(move |x| move |_| x.clone(), applicative(p, q))
+}
 
-/// Takes two parsers, and 'choses'
+// pub fn applicative_r<'a, A, B, Sym>(
+//     p: Parser<'a, Sym, impl Clone + Fn(B) -> A + 'a>,
+//     q: Parser<'a, Sym, B>,
+// ) -> Parser<'a, Sym, B>
+// where
+//     A: Clone + 'a,
+//     B: Clone + 'a,
+//     Sym: Clone + 'a,
+// {
+//     Parser {
+//         parser: Arc::new(move |xs: &Vec<Sym>| {
+//             let app = applicative(p, q).run(xs);
+//             app.into_iter.map()
+//             fmap(move |_| move |y: Parser<'a, Sym, B>| y.clone(),
+//         })
+//     }
+// }
+
+/// Takes two parsers, and 'chooses'
 /// the one that succeeds
 /// INPUT :: (Symbol -> [(A, [Symbol])]]) -> (Symbol -> [(A, [Symbol])]]
 /// OUTPUT:: Symbol -> [(A, [Symbol])]
@@ -152,12 +222,12 @@ pub fn choice<'a, Sym, Res>(
     q: Parser<'a, Sym, Res>,
 ) -> Parser<'a, Sym, Res>
 where
-    Sym: Clone + Debug + Display + 'a,
+    Sym: Clone + 'a,
     Res: Clone + 'a,
 {
     Parser {
         parser: Arc::new(move |xs: &Vec<Sym>| {
-            [p.run(&xs), q.run(&xs)].concat() // expensive, maybe refactor
+            [p.run(xs), q.run(xs)].concat() // expensive, maybe refactor
         }),
     }
 }
@@ -171,13 +241,13 @@ where
 /// many(symbol a).run("aaaaaaa") -> [("aaaaaaa", [])];
 pub fn many<'a, Sym, Res>(p: Parser<'a, Sym, Res>) -> Parser<'a, Sym, Vec<Res>>
 where
-    Res: Clone + Debug + Display + 'a,
-    Sym: Clone + Debug + Display + 'a,
+    Res: Clone + 'a,
+    Sym: Clone + 'a,
 {
     // prepends x to xs
     fn f<Sym>(x: &Sym, xs: Vec<Sym>) -> Vec<Sym>
     where
-        Sym: Clone + Debug + Display,
+        Sym: Clone,
     {
         let mut res = xs.to_vec();
         res.insert(0, x.clone());
@@ -200,4 +270,54 @@ where
             .run(input)
         }),
     }
+}
+pub fn many1<'a, Sym, Res>(p: Parser<'a, Sym, Res>) -> Parser<'a, Sym, Vec<Res>>
+where
+    Res: Clone + 'a,
+    Sym: Clone + 'a,
+{
+    // prepends x to xs
+    fn f<Sym>(x: &Sym, xs: Vec<Sym>) -> Vec<Sym>
+    where
+        Sym: Clone,
+    {
+        let mut res = xs.to_vec();
+        res.insert(0, x.clone());
+        res
+    }
+    let f = move |x: Res| move |xs: Vec<Res>| f(&x, xs);
+    applicative(fmap(f, p.clone()), many(p.clone()))
+}
+/// takes only the first parse result, and ignores the rest
+pub fn first<'a, Sym, Res>(p: Parser<'a, Sym, Res>) -> Parser<'a, Sym, Res>
+where
+    Res: Clone + 'a,
+    Sym: Clone + 'a,
+{
+    Parser {
+        parser: Arc::new(move |input: &Vec<Sym>| {
+            let mut r = p.run(input);
+            if let Some(fst) = r.pop() {
+                vec![fst]
+            } else {
+                vec![]
+            }
+        }),
+    }
+}
+
+pub fn option<'a, Sym, Res>(p: Parser<'a, Sym, Res>, d: Res) -> Parser<'a, Sym, Res>
+where
+    Sym: Clone + 'a,
+    Res: Clone + 'a,
+{
+    choice(p, Parser::succeed(d))
+}
+
+pub fn greedy<'a, Sym, Res>(p: Parser<'a, Sym, Res>) -> Parser<'a, Sym, Vec<Res>>
+where
+    Sym: Clone + 'a,
+    Res: Clone + 'a,
+{
+    first(many(p))
 }
