@@ -16,6 +16,9 @@ pkgs.callPackage (
     nativeBuildInputs = [
       cargo
       rustc
+      rust-analyzer
+      rustfmt
+      clippy
     ];
   }
 ) { }

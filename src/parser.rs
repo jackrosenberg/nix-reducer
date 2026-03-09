@@ -1,20 +1,24 @@
-use std::{fmt::{Display, Debug}, sync::Arc};
+use std::{
+    fmt::{Debug, Display},
+    sync::Arc,
+};
 
-pub struct Parser<'a, Sym, Res>
-{
+pub struct Parser<'a, Sym, Res> {
     pub parser: Arc<dyn Fn(&Vec<Sym>) -> Vec<(Res, Vec<Sym>)> + 'a>,
 }
 
 impl<'a, Sym, Res> Clone for Parser<'a, Sym, Res> {
     fn clone(&self) -> Self {
-        Self { parser: self.parser.clone() }
+        Self {
+            parser: self.parser.clone(),
+        }
     }
 }
 
-impl<'a ,Sym, Res> Parser<'a, Sym, Res>
-where 
+impl<'a, Sym, Res> Parser<'a, Sym, Res>
+where
     Sym: Clone + Debug + Display,
-    Res: Clone + 'a
+    Res: Clone + 'a,
 {
     /// consumes a list of tokens and returns a
     /// list of (partial) parses
@@ -27,18 +31,15 @@ where
         (self.parser)(input)
     }
     pub fn succeed(a: Res) -> Self {
-        Self { 
-            parser: Arc::new(move |input: &Vec<Sym>| {
-                 vec![(a.clone(), input.clone())]
-            }),
+        Self {
+            parser: Arc::new(move |input: &Vec<Sym>| vec![(a.clone(), input.clone())]),
         }
     }
-
 }
 
-
 impl<'a, Sym> Parser<'a, Sym, Sym>
-where Sym: PartialEq + Clone + Debug + Display + 'a
+where
+    Sym: PartialEq + Clone + Debug + Display + 'a,
 {
     /// INPUT :: Symbol
     /// OUTPUT:: Symbol -> [(Result, [Symbol])]
@@ -76,10 +77,7 @@ where Sym: PartialEq + Clone + Debug + Display + 'a
     /// OUTPUT:: Symbol -> [(Result, [Symbol])]
     /// ex.:
     /// Parser::satisfy().run(vec!["B","C","D"]) -> [("B", ["C", "D"])]
-    pub fn satisfy(
-        c: impl Fn(Sym) -> bool +'a,
-    ) -> Self
-    {
+    pub fn satisfy(c: impl Fn(Sym) -> bool + 'a) -> Self {
         Self {
             parser: Arc::new(move |input: &Vec<Sym>| {
                 if input.is_empty() || !(c)(input[0].clone()) {
@@ -87,27 +85,24 @@ where Sym: PartialEq + Clone + Debug + Display + 'a
                 } else {
                     vec![(input[0].clone(), input[1..].to_vec())]
                 }
-            })
+            }),
         }
     }
 }
 
 // parser combinators
 
-/// Takes a function, and wraps it in the 
+/// Takes a function, and wraps it in the
 /// parser datastructure
 /// INPUT :: (A -> B) -> [(A, [Symbol])]
 /// OUTPUT:: Symbol -> [(B, [Symbol])]
 /// ex.:
 /// fmap(concat(), applicative(symbol a, symbol b)).run("ab") -> [("ab"), []]
-pub fn fmap<'a, A, B, Sym>(
-    f: impl Fn(A) -> B + 'a,
-    p: Parser<'a, Sym,A>
-) -> Parser<'a, Sym, B>
-where 
+pub fn fmap<'a, A, B, Sym>(f: impl Fn(A) -> B + 'a, p: Parser<'a, Sym, A>) -> Parser<'a, Sym, B>
+where
     A: Clone + 'a,
     B: Clone,
-    Sym: Clone + Debug + Display + 'a
+    Sym: Clone + Debug + Display + 'a,
 {
     Parser {
         parser: Arc::new(move |xs: &Vec<Sym>| {
@@ -119,7 +114,7 @@ where
     }
 }
 
-/// Takes two parsers, one of type (A->B) 
+/// Takes two parsers, one of type (A->B)
 /// and applies the function within the
 /// parser datastructure
 /// INPUT :: [((B -> A), [Symbol])] -> [(A, [Symbol])]
@@ -127,25 +122,19 @@ where
 /// ex.:
 /// fmap(concat(), applicative(symbol a, symbol b)).run("ab") -> [("ab"), []]
 pub fn applicative<'a, A, B, Sym>(
-    p: Parser<'a, Sym,impl Clone + Fn(B) -> A + 'a>,
-    q: Parser<'a, Sym,B>
+    p: Parser<'a, Sym, impl Clone + Fn(B) -> A + 'a>,
+    q: Parser<'a, Sym, B>,
 ) -> Parser<'a, Sym, A>
-where 
+where
     A: Clone,
     B: Clone + 'a,
-    Sym: Clone + Debug + Display + 'a
+    Sym: Clone + Debug + Display + 'a,
 {
     Parser {
         parser: Arc::new(move |xs: &Vec<Sym>| {
             p.run(&xs)
                 .into_iter()
-                .flat_map(|(f, ys)| 
-                    q.run(&ys)
-                        .into_iter()
-                        .map(move |(r, zs)|
-                            ((f)(r), zs)
-                        )
-                )
+                .flat_map(|(f, ys)| q.run(&ys).into_iter().map(move |(r, zs)| ((f)(r), zs)))
                 .collect::<Vec<_>>()
         }),
     }
@@ -155,20 +144,20 @@ where
 /// the one that succeeds
 /// INPUT :: (Symbol -> [(A, [Symbol])]]) -> (Symbol -> [(A, [Symbol])]]
 /// OUTPUT:: Symbol -> [(A, [Symbol])]
-/// ex.: 
+/// ex.:
 /// choice(symbol c, symbol a)).run("a") -> [("a"), []]
 /// choice(symbol c, symbol a)).run("c") -> [("c"), []]
 pub fn choice<'a, Sym, Res>(
-    p: Parser<'a, Sym,Res>,
-    q: Parser<'a, Sym,Res>
+    p: Parser<'a, Sym, Res>,
+    q: Parser<'a, Sym, Res>,
 ) -> Parser<'a, Sym, Res>
-where 
+where
     Sym: Clone + Debug + Display + 'a,
     Res: Clone + 'a,
 {
     Parser {
         parser: Arc::new(move |xs: &Vec<Sym>| {
-            [p.run(&xs),q.run(&xs)].concat() // expensive, maybe refactor
+            [p.run(&xs), q.run(&xs)].concat() // expensive, maybe refactor
         }),
     }
 }
@@ -177,27 +166,25 @@ where
 /// P*
 /// INPUT :: Symbol -> [(A, [Symbol])]
 /// OUTPUT:: Symbol -> [([A], [Symbol])]
-/// ex.: 
+/// ex.:
 /// many(symbol a).run("aaa") -> [("aaa", [])];
 /// many(symbol a).run("aaaaaaa") -> [("aaaaaaa", [])];
-pub fn many<'a, Sym, Res>(
-    p: Parser<'a, Sym,Res>
-) -> Parser<'a, Sym, Vec<Res>>
+pub fn many<'a, Sym, Res>(p: Parser<'a, Sym, Res>) -> Parser<'a, Sym, Vec<Res>>
 where
     Res: Clone + Debug + Display + 'a,
-    Sym: Clone + Debug + Display + 'a
+    Sym: Clone + Debug + Display + 'a,
 {
     // prepends x to xs
     fn f<Sym>(x: &Sym, xs: Vec<Sym>) -> Vec<Sym>
     where
-        Sym: Clone + Debug + Display
+        Sym: Clone + Debug + Display,
     {
         let mut res = xs.to_vec();
         res.insert(0, x.clone());
         res
     }
-    let f = move |x: Res| move |xs: Vec<Res>| f(&x,xs);
-    // it looks like rust is not lazy enough to 
+    let f = move |x: Res| move |xs: Vec<Res>| f(&x, xs);
+    // it looks like rust is not lazy enough to
     // make the following work :(
     // choice(applicative(fmap(f, p.clone()), many(p.clone())), Parser::succeed(vec![]))
     // this might be the ugliest parser i have written
@@ -207,13 +194,10 @@ where
             // base case
             if p.run(input).is_empty() {
                 Parser::succeed(vec![])
-            }
-            else {
+            } else {
                 applicative(fmap(f, p.clone()), many(p.clone()))
             }
             .run(input)
-
-        })
-   }
-
+        }),
+    }
 }

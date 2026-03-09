@@ -1,8 +1,8 @@
 use std::{env, fs};
 
-pub mod parser; 
-pub mod types; 
-use crate::{parser::{Parser, applicative, fmap, many}};
+pub mod parser;
+pub mod types;
+use crate::parser::{applicative, fmap, many, Parser};
 
 fn main() {
     // take in command line args
@@ -17,7 +17,10 @@ fn main() {
 
     // let p = Parser::symbol("A").run(vec!["A", "B", "C", "D"]);
     // let abc = vec!["A", "B", "C", "D"];
-    let abc = "ABCDEFGHIGJK".chars().map(|c| char::to_string(&c)).collect::<Vec<_>>();
+    let abc = "ABCDEFGHIGJK"
+        .chars()
+        .map(|c| char::to_string(&c))
+        .collect::<Vec<_>>();
     let abc = abc.iter().collect::<Vec<_>>();
 
     let a = String::from("A");
@@ -36,10 +39,10 @@ fn main() {
 
     // still need to decide what type i want the res to be
     fn f(a: &String, b: &String, c: &String, d: &String, e: &String) -> Vec<String> {
-        vec![a.clone(),b.clone(),c.clone(),d.clone(),e.clone()]
+        vec![a.clone(), b.clone(), c.clone(), d.clone(), e.clone()]
     }
     // TODO, make macro?
-    let c1 = |a| move |b| move |c| move |d| move |e| f(a,b,c,d,e);
+    let c1 = |a| move |b| move |c| move |d| move |e| f(a, b, c, d, e);
     let parser = fmap(c1, p.clone());
     let parser = applicative(parser, q);
     let parser = applicative(parser, s.clone());
