@@ -1,12 +1,20 @@
+use std::sync::Arc;
+
 pub struct Parser<'a, Sym, Res>
 {
-    pub parser: Box<dyn Fn(&Vec<Sym>) -> Vec<(Res, Vec<Sym>)> + 'a>,
+    pub parser: Arc<dyn Fn(&Vec<Sym>) -> Vec<(Res, Vec<Sym>)> + 'a>,
+}
+
+impl<'a, Sym, Res> Clone for Parser<'a, Sym, Res> {
+    fn clone(&self) -> Self {
+        Self { parser: self.parser.clone() }
+    }
 }
 
 impl<'a ,Sym, Res> Parser<'a, Sym, Res>
 where 
     Sym: Clone,
-    Res: Clone
+    Res: Clone + 'a
 {
     /// consumes a list of tokens and returns a
     /// list of (partial) parses
@@ -18,9 +26,9 @@ where
         }
         (self.parser)(input)
     }
-    pub fn succeed(a: &'a Res) -> Self {
+    pub fn succeed(a: Res) -> Self {
         Self { 
-            parser: Box::new(move |input: &Vec<Sym>| {
+            parser: Arc::new(move |input: &Vec<Sym>| {
                  vec![(a.clone(), input.clone())]
             }),
         }
@@ -39,7 +47,7 @@ where Sym: PartialEq + Clone + 'a
     /// Parser::symbol("A").run([hello world]) -> []
     pub fn symbol(a: Sym) -> Self {
         Self {
-            parser: Box::new(move |input: &Vec<Sym>| {
+            parser: Arc::new(move |input: &Vec<Sym>| {
                 if input.is_empty() || a != input[0] {
                     vec![]
                 } else {
@@ -55,7 +63,7 @@ where Sym: PartialEq + Clone + 'a
     /// symbol('e').parser.run([hello world]) -> []
     pub fn any_symbol() -> Self {
         Self {
-            parser: Box::new(move |input: &Vec<Sym>| {
+            parser: Arc::new(move |input: &Vec<Sym>| {
                 if input.is_empty() {
                     vec![]
                 } else {
@@ -73,7 +81,7 @@ where Sym: PartialEq + Clone + 'a
     ) -> Self
     {
         Self {
-            parser: Box::new(move |input: &Vec<Sym>| {
+            parser: Arc::new(move |input: &Vec<Sym>| {
                 if input.is_empty() || !(c)(input[0].clone()) {
                     vec![]
                 } else {
@@ -93,16 +101,16 @@ where Sym: PartialEq + Clone + 'a
 /// ex.:
 /// fmap(concat(), applicative(symbol a, symbol b)).run("ab") -> [("ab"), []]
 pub fn fmap<'a, A, B, Sym>(
-    f: &'a impl Fn(A) -> B,
-    p: &'a Parser<Sym,A>
+    f: impl Fn(A) -> B + 'a,
+    p: Parser<'a, Sym,A>
 ) -> Parser<'a, Sym, B>
 where 
-    A: Clone,
+    A: Clone + 'a,
     B: Clone,
-    Sym: Clone
+    Sym: Clone + 'a
 {
     Parser {
-        parser: Box::new(move |xs: &Vec<Sym>| {
+        parser: Arc::new(move |xs: &Vec<Sym>| {
             p.run(&xs)
                 .into_iter()
                 .map(|(y, ys)| ((f)(y), ys))
@@ -119,16 +127,16 @@ where
 /// ex.:
 /// fmap(concat(), applicative(symbol a, symbol b)).run("ab") -> [("ab"), []]
 pub fn applicative<'a, A, B, Sym>(
-    p: &'a Parser<Sym,impl Clone + Fn(B) -> A + 'a>,
-    q: &'a Parser<Sym,B>
+    p: Parser<'a, Sym,impl Clone + Fn(B) -> A + 'a>,
+    q: Parser<'a, Sym,B>
 ) -> Parser<'a, Sym, A>
 where 
     A: Clone,
-    B: Clone,
-    Sym: Clone
+    B: Clone + 'a,
+    Sym: Clone + 'a
 {
     Parser {
-        parser: Box::new(move |xs: &Vec<Sym>| {
+        parser: Arc::new(move |xs: &Vec<Sym>| {
             p.run(&xs)
                 .into_iter()
                 .flat_map(|(f, ys)| 
@@ -151,25 +159,25 @@ where
 /// choice(symbol c, symbol a)).run("a") -> [("a"), []]
 /// choice(symbol c, symbol a)).run("c") -> [("c"), []]
 pub fn choice<'a, Sym, Res>(
-    p: &'a Parser<Sym,Res>,
-    q: &'a Parser<Sym,Res>
+    p: Parser<'a, Sym,Res>,
+    q: Parser<'a, Sym,Res>
 ) -> Parser<'a, Sym, Res>
 where 
-    Sym: Clone,
-    Res: Clone,
+    Sym: Clone + 'a,
+    Res: Clone + 'a,
 {
     Parser {
-        parser: Box::new(move |xs: &Vec<Sym>| {
+        parser: Arc::new(move |xs: &Vec<Sym>| {
             [p.run(&xs),q.run(&xs)].concat() // expensive, maybe refactor
         }),
     }
 }
 pub fn many<'a, Sym, Res>(
-    p: &'a Parser<Sym,Res>
+    p: Parser<'a, Sym,Res>
 ) -> Parser<'a, Sym, Vec<Res>>
 where
-    Res: Clone,
-    Sym: Clone
+    Res: Clone + 'a,
+    Sym: Clone + 'a
 {
     // prepends x to xs
     fn f<Sym>(x: &Sym, xs: Vec<Sym>) -> Vec<Sym>
@@ -179,12 +187,7 @@ where
         let mut res = xs.to_vec();
         res.insert(0, x.clone());
         res
-    };
-    let v = vec![];
+    }
     let f = move |x: Res| move |xs: Vec<Res>| f(&x,xs);
-    let p = applicative(&fmap(&f, p), &many(p));
-    let base = Parser::succeed(&v);
-    choice(&p, &base)
-    // fn many_rec_helper() {
-    // }
+    choice(applicative(fmap(f, p.clone()), many(p.clone())), Parser::succeed(vec![]))
 }

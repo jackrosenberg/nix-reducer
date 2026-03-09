@@ -2,7 +2,7 @@ use std::{env, fs};
 
 pub mod parser; 
 pub mod types; 
-use crate::{parser::{Parser, applicative, fmap}};
+use crate::{parser::{Parser, applicative, fmap, many}};
 
 fn main() {
     // take in command line args
@@ -17,8 +17,9 @@ fn main() {
 
     // let p = Parser::symbol("A").run(vec!["A", "B", "C", "D"]);
     // let abc = vec!["A", "B", "C", "D"];
-    let abc = "ABCDEFGHIGJK".chars().map(|c| char::to_string(&c)).collect::<Vec<_>>();
+    let abc = "AAAAAAAABCDEFGHIGJK".chars().map(|c| char::to_string(&c)).collect::<Vec<_>>();
     let abc = abc.iter().collect::<Vec<_>>();
+
     let a = String::from("A");
     let b = String::from("B");
     let e = String::from("E");
@@ -31,17 +32,22 @@ fn main() {
         s == "C" || s == "D"
     }
     let s = Parser::satisfy(c_or_d);
-    let ch = parser::choice(&p, &r);
+    let ch = parser::choice(p.clone(), r);
 
     fn f(a: &String, b: &String, c: &String, d: &String, e: &String) -> String {
         format!("{a}{b}{c}{d}{e}")
     }
     // TODO, make macro?
     let c1 = |a| move |b| move |c| move |d| move |e| f(a,b,c,d,e);
-    let parser = fmap(&c1, &p);
-    let parser = applicative(&parser, &q);
-    let parser = applicative(&parser, &s);
-    let parser = applicative(&parser, &s);
-    let parser = applicative(&parser, &ch);
+    let parser = fmap(c1, p.clone());
+    let parser = applicative(parser, q);
+    let parser = applicative(parser, s.clone());
+    let parser = applicative(parser, s.clone());
+    let parser = applicative(parser, ch);
+
+    println!("{:?} ", parser.run(&abc));
+
+    let parser = many(p.clone());
+
     println!("{:?} ", parser.run(&abc));
 }
