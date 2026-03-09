@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{fmt::{Display, Debug}, sync::Arc};
 
 pub struct Parser<'a, Sym, Res>
 {
@@ -13,7 +13,7 @@ impl<'a, Sym, Res> Clone for Parser<'a, Sym, Res> {
 
 impl<'a ,Sym, Res> Parser<'a, Sym, Res>
 where 
-    Sym: Clone,
+    Sym: Clone + Debug + Display,
     Res: Clone + 'a
 {
     /// consumes a list of tokens and returns a
@@ -38,7 +38,7 @@ where
 
 
 impl<'a, Sym> Parser<'a, Sym, Sym>
-where Sym: PartialEq + Clone + 'a
+where Sym: PartialEq + Clone + Debug + Display + 'a
 {
     /// INPUT :: Symbol
     /// OUTPUT:: Symbol -> [(Result, [Symbol])]
@@ -107,7 +107,7 @@ pub fn fmap<'a, A, B, Sym>(
 where 
     A: Clone + 'a,
     B: Clone,
-    Sym: Clone + 'a
+    Sym: Clone + Debug + Display + 'a
 {
     Parser {
         parser: Arc::new(move |xs: &Vec<Sym>| {
@@ -133,7 +133,7 @@ pub fn applicative<'a, A, B, Sym>(
 where 
     A: Clone,
     B: Clone + 'a,
-    Sym: Clone + 'a
+    Sym: Clone + Debug + Display + 'a
 {
     Parser {
         parser: Arc::new(move |xs: &Vec<Sym>| {
@@ -153,7 +153,7 @@ where
 
 /// Takes two parsers, and 'choses'
 /// the one that succeeds
-/// INPUT :: [(A, [Symbol])] -> [(A, [Symbol])]
+/// INPUT :: (Symbol -> [(A, [Symbol])]]) -> (Symbol -> [(A, [Symbol])]]
 /// OUTPUT:: Symbol -> [(A, [Symbol])]
 /// ex.: 
 /// choice(symbol c, symbol a)).run("a") -> [("a"), []]
@@ -163,7 +163,7 @@ pub fn choice<'a, Sym, Res>(
     q: Parser<'a, Sym,Res>
 ) -> Parser<'a, Sym, Res>
 where 
-    Sym: Clone + 'a,
+    Sym: Clone + Debug + Display + 'a,
     Res: Clone + 'a,
 {
     Parser {
@@ -172,22 +172,48 @@ where
         }),
     }
 }
+/// Takes a parser and returns a parser
+/// that chains the parser as much as it can
+/// P*
+/// INPUT :: Symbol -> [(A, [Symbol])]
+/// OUTPUT:: Symbol -> [([A], [Symbol])]
+/// ex.: 
+/// many(symbol a).run("aaa") -> [("aaa", [])];
+/// many(symbol a).run("aaaaaaa") -> [("aaaaaaa", [])];
 pub fn many<'a, Sym, Res>(
     p: Parser<'a, Sym,Res>
 ) -> Parser<'a, Sym, Vec<Res>>
 where
-    Res: Clone + 'a,
-    Sym: Clone + 'a
+    Res: Clone + Debug + Display + 'a,
+    Sym: Clone + Debug + Display + 'a
 {
     // prepends x to xs
     fn f<Sym>(x: &Sym, xs: Vec<Sym>) -> Vec<Sym>
     where
-        Sym: Clone
+        Sym: Clone + Debug + Display
     {
         let mut res = xs.to_vec();
         res.insert(0, x.clone());
         res
     }
     let f = move |x: Res| move |xs: Vec<Res>| f(&x,xs);
-    choice(applicative(fmap(f, p.clone()), many(p.clone())), Parser::succeed(vec![]))
+    // it looks like rust is not lazy enough to 
+    // make the following work :(
+    // choice(applicative(fmap(f, p.clone()), many(p.clone())), Parser::succeed(vec![]))
+    // this might be the ugliest parser i have written
+    // but it works :)
+    Parser {
+        parser: Arc::new(move |input: &Vec<Sym>| {
+            // base case
+            if p.run(input).is_empty() {
+                Parser::succeed(vec![])
+            }
+            else {
+                applicative(fmap(f, p.clone()), many(p.clone()))
+            }
+            .run(input)
+
+        })
+   }
+
 }

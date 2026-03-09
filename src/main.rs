@@ -17,7 +17,7 @@ fn main() {
 
     // let p = Parser::symbol("A").run(vec!["A", "B", "C", "D"]);
     // let abc = vec!["A", "B", "C", "D"];
-    let abc = "AAAAAAAABCDEFGHIGJK".chars().map(|c| char::to_string(&c)).collect::<Vec<_>>();
+    let abc = "ABCDEFGHIGJK".chars().map(|c| char::to_string(&c)).collect::<Vec<_>>();
     let abc = abc.iter().collect::<Vec<_>>();
 
     let a = String::from("A");
@@ -34,8 +34,9 @@ fn main() {
     let s = Parser::satisfy(c_or_d);
     let ch = parser::choice(p.clone(), r);
 
-    fn f(a: &String, b: &String, c: &String, d: &String, e: &String) -> String {
-        format!("{a}{b}{c}{d}{e}")
+    // still need to decide what type i want the res to be
+    fn f(a: &String, b: &String, c: &String, d: &String, e: &String) -> Vec<String> {
+        vec![a.clone(),b.clone(),c.clone(),d.clone(),e.clone()]
     }
     // TODO, make macro?
     let c1 = |a| move |b| move |c| move |d| move |e| f(a,b,c,d,e);
