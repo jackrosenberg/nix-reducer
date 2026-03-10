@@ -1,53 +1,69 @@
-pub enum KEYWORD {
-    IF,
-    THEN,
-    ELSE,
-    ASSERT,
-    WITH,
-    LET,
-    IN,
-    REC,
-    INHERIT,
-    OR,
-    ELLIPSIS, // ...
+#[derive(Clone, Copy, Debug)]
+pub enum Keyword {
+    If,
+    Then,
+    Else,
+    Assert,
+    With,
+    Let,
+    In,
+    Rec,
+    Inherit,
+    Or,
+    Ellipsis, // ...
 }
 
-pub enum OPERATOR {
-    EQ,
-    NEQ,
-    LEQ,
-    GEQ,
-    LAND,
-    LOR,
-    IMPL,
-    UPDATE,
-    CONCAT,
-    PIPE_FROM, //REQUIREEXPERIMENTALFEATURE
-    PIPE_INTO, //REQUIREEXPERIMENTALFEATURE
+#[derive(Clone, Copy, Debug)]
+pub enum Punctuation {
+    POpen, PClose,   // () parenthesis
+    SOpen, SClose,   // [] square
+    COpen, CClose,   // {} curly
+    Comma, Semicolon // , ; (... duhh)
 }
 
-pub enum TYPE_PRIMITIVE {
-    INTEGER(usize),
-    FLOAT(f64),
-    BOOLEAN(bool),
-    STRING(String),
-    PATH(String),
-    NULL(NULL),
-    ATTRSET(Box<AttrSet>),
-    LIST(Vec<TYPE_PRIMITIVE>),
-    FUNCTION(fn(Vec<TYPE_PRIMITIVE>) -> TYPE_PRIMITIVE),
-    EXTERNAL(NULL), // i think these are custom values, defined by users? TODO!!
+#[derive(Clone, Copy, Debug)]
+pub enum Operator {
+    Eq,
+    Neq,
+    Leq,
+    Geq,
+    Land,
+    Lor,
+    Impl,
+    Update,
+    Concat,
+    PipeFrom, //REQUIREEXPERIMENTALFEATURE
+    PipeInto, //REQUIREEXPERIMENTALFEATURE
 }
 
-pub enum TOKEN {
-    OPERATOR,
-    TYPE_PRIMITIVE,
-    KEYWORD,
+// #[derive(Clone, Copy, Debug)]
+pub enum TypePrimitive {
+    Integer(usize),
+    Float(f64),
+    Boolean(bool),
+    String(String),
+    Path(String),
+    Null(NULL),
+    Attrset(Box<AttrSet>),
+    List(Vec<TypePrimitive>),
+    Function(fn(Vec<TypePrimitive>) -> TypePrimitive),
+    External(NULL), // i think these are custom values, defined by users? TODO!!
 }
 
+#[derive(Clone, Copy, Debug)]
+pub enum Token {
+    Operator(Operator),
+    // TypePrimitive(TypePrimitive),
+    TypePrimitive,
+    Keyword(Keyword),
+    Punctuation(Punctuation)
+}
+
+#[derive(Clone, Copy, Debug)]
 pub struct NULL;
 
+// #[derive(Clone, Copy, Debug)]
 pub struct AttrSet {
     pub name: String,
-    pub value: TYPE_PRIMITIVE,
+    pub value: TypePrimitive,
 }

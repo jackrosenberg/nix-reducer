@@ -37,6 +37,11 @@ where
             parser: Arc::new(move |input: &Vec<Sym>| vec![(a.clone(), input.clone())]),
         }
     }
+    pub fn empty() -> Self {
+        Self {
+            parser: Arc::new(move |_: &Vec<Sym>| vec![]),
+        }
+    }
 }
 
 impl<'a, Sym> Parser<'a, Sym, Sym>
@@ -79,10 +84,10 @@ where
     /// OUTPUT:: Symbol -> [(Result, [Symbol])]
     /// ex.:
     /// Parser::satisfy().run(vec!["B","C","D"]) -> [("B", ["C", "D"])]
-    pub fn satisfy(c: impl Fn(Sym) -> bool + 'a) -> Self {
+    pub fn satisfy(c: impl Fn(&Sym) -> bool + 'a) -> Self {
         Self {
             parser: Arc::new(move |input: &Vec<Sym>| {
-                if input.is_empty() || !(c)(input[0].clone()) {
+                if input.is_empty() || !(c)(&input[0].clone()) {
                     vec![]
                 } else {
                     vec![(input[0].clone(), input[1..].to_vec())]
@@ -231,6 +236,29 @@ where
         }),
     }
 }
+
+/// only if p is empty return q
+pub fn biased_choice<'a, Sym, Res>(
+    p: Parser<'a, Sym, Res>,
+    q: Parser<'a, Sym, Res>,
+) -> Parser<'a, Sym, Res>
+where
+    Sym: Clone + 'a,
+    Res: Clone + 'a,
+{
+    Parser {
+        parser: Arc::new(move |xs: &Vec<Sym>| {
+            let r = p.run(xs);
+            if r.is_empty() {
+                q.clone()
+            }
+            else {
+                p.clone()
+            }
+            .run(xs)
+        }),
+    }
+}
 /// Takes a parser and returns a parser
 /// that chains the parser as much as it can
 /// P*
@@ -321,3 +349,17 @@ where
 {
     first(many(p))
 }
+
+
+pub fn greedy_choice<'a, Sym, Res>(
+    ps: Vec<Parser<'a, Sym, Res>>
+) -> Parser<'a, Sym, Res> 
+where
+    Sym: Clone + 'a,
+    Res: Clone + 'a,
+{
+    // check if needs to be swapped, make sure that the empty parser does not
+    // go first, since the whole thing will fail
+    ps.into_iter().fold(Parser::empty(), |acc, elem| biased_choice(acc, elem))
+}
+
