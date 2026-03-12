@@ -16,7 +16,7 @@ use crate::parser::{
     greedy_choice,
     Parser
 };
-use crate::types::{Token, Punctuation, Keyword};
+use crate::types::{Token, Punctuation, Keyword, Operator};
 
 fn main() {
     // take in command line args
@@ -69,6 +69,32 @@ fn lex_tokens(input: &Vec<String>) -> Vec<types::Token> {
         ("...",     Token::Keyword(Keyword::Ellipsis)),
 
     ];
+
+    let punctuation_pairs: [(&str, Token); 8] = [
+        ("(", Token::Punctuation(Punctuation::POpen)),
+        (")", Token::Punctuation(Punctuation::PClose)),
+        ("[", Token::Punctuation(Punctuation::SOpen)),
+        ("]", Token::Punctuation(Punctuation::SOpen)),
+        ("{", Token::Punctuation(Punctuation::COpen)),
+        ("}", Token::Punctuation(Punctuation::CClose)),
+        (",", Token::Punctuation(Punctuation::Comma)),
+        (";", Token::Punctuation(Punctuation::Semicolon)),
+    ];
+
+    let operator_pairs: [(&str, Token); 11] = [
+        ("==", Token::Operator(Operator::Eq)),
+        ("!=", Token::Operator(Operator::Neq)),
+        ("<=", Token::Operator(Operator::Leq)),
+        (">=", Token::Operator(Operator::Geq)),
+        ("&&", Token::Operator(Operator::Land)),
+        ("||", Token::Operator(Operator::Lor)),
+        ("=>", Token::Operator(Operator::Impl)),
+        ("//", Token::Operator(Operator::Update)),
+        ("++", Token::Operator(Operator::Concat)),
+        ("|>", Token::Operator(Operator::PipeFrom)),
+        ("<|", Token::Operator(Operator::PipeInto)),
+    ];
+
     fn gen_key_parser(key_pair: (&'_ str, Token)) -> Parser<'_, String, Token> {
         Parser {
             parser: Arc::new(move |input: &Vec<String>| {
@@ -84,40 +110,40 @@ fn lex_tokens(input: &Vec<String>) -> Vec<types::Token> {
             })
         }
     }
-    fn lex_keyword(pairs: Vec<(&str, Token)>) -> Parser<String, Token> {
-        greedy_choice(pairs.iter().map(|c| gen_key_parser(*c)).collect::<Vec<_>>())
-    };
 
-    let punctuation_pairs: [(&str, Token); 8] = [
-        ("(", Token::Punctuation(Punctuation::POpen)),
-        (")", Token::Punctuation(Punctuation::PClose)),
-        ("[", Token::Punctuation(Punctuation::SOpen)),
-        ("]", Token::Punctuation(Punctuation::SOpen)),
-        ("{", Token::Punctuation(Punctuation::COpen)),
-        ("}", Token::Punctuation(Punctuation::CClose)),
-        (",", Token::Punctuation(Punctuation::Comma)),
-        (";", Token::Punctuation(Punctuation::Semicolon)),
-    ];
+    fn lex_keyword(pairs: Vec<(&'_ str, Token)>) -> Parser<'_, String, Token> {
+        greedy_choice(pairs.iter().map(|c| gen_key_parser(*c)).collect::<Vec<_>>())
+    }
 
     let lex_token = greedy_choice(
         // list of constructors for tokens
-        vec![
-            lex_keyword(keyword_pairs.to_vec()),
-            lex_keyword(punctuation_pairs.to_vec()),
+        [
+            keyword_pairs.to_vec(),
+            punctuation_pairs.to_vec(),
+            punctuation_pairs.to_vec(),
+            operator_pairs.to_vec(),
         ]
-    );
-
-    let f = |cmts: Vec<String> | |spcs: Vec<String>| move |tkns: Vec<Token>| {
+        .into_iter().map(|p| lex_keyword(p)).collect::<>()
+    );                   
+                         
+    let f = |_: Vec<String> | |_: Vec<String>| |tkns: Vec<Token>| { move |cms2: Vec<String>| move |tkns2: Vec<Token>| {
         // println!("{:?} ", cmts.clone());
-        println!("{:?} ", spcs.clone());
-        println!("{:?} ", tkns.clone());
-    };
+        // println!("{:?} ", spcs.clone());
+        // println!("{:?} ", tkns.clone());
+        let a = tkns.clone();  
+        [ a, tkns2.clone()].concat()
+    }};
 
-    let parser = fmap(f, lex_comments.clone());
+    let parser = fmap(f, lex_comments);
     let parser = applicative(parser, lex_whitespace.clone());
-    let parser = applicative(parser, greedy(lex_token));
-    println!("{:?}", parser.run(input)[0].0);
+    let parser = applicative(parser, greedy(lex_token.clone()));
+    let parser = applicative(parser, lex_whitespace.clone());
+    let parser = applicative(parser, greedy(lex_token.clone()));
+
+    println!("{:?}", greedy(parser).run(input)[0].0);
 
     todo!()
 
 }
+
+
