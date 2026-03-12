@@ -84,9 +84,9 @@ fn lex_tokens(input: &Vec<String>) -> Vec<types::Token> {
             })
         }
     }
-    let lex_keyword: Parser<String, Token> = greedy_choice(
-        keyword_pairs.iter().map(|c| gen_key_parser(*c)).collect::<Vec<_>>()
-    );
+    fn lex_keyword(pairs: Vec<(&str, Token)>) -> Parser<String, Token> {
+        greedy_choice(pairs.iter().map(|c| gen_key_parser(*c)).collect::<Vec<_>>())
+    };
 
     let punctuation_pairs: [(&str, Token); 8] = [
         ("(", Token::Punctuation(Punctuation::POpen)),
@@ -99,13 +99,13 @@ fn lex_tokens(input: &Vec<String>) -> Vec<types::Token> {
         (";", Token::Punctuation(Punctuation::Semicolon)),
     ];
 
-    // let lex_token = greedy_choice(
-    //     // list of constructors for tokens
-    //     vec![
-    //         lex_keyword
-    //         fmap(keyword, Parser::token(""))
-    //     ]
-    // )
+    let lex_token = greedy_choice(
+        // list of constructors for tokens
+        vec![
+            lex_keyword(keyword_pairs.to_vec()),
+            lex_keyword(punctuation_pairs.to_vec()),
+        ]
+    );
 
     let f = |cmts: Vec<String> | |spcs: Vec<String>| move |tkns: Vec<Token>| {
         // println!("{:?} ", cmts.clone());
@@ -115,7 +115,7 @@ fn lex_tokens(input: &Vec<String>) -> Vec<types::Token> {
 
     let parser = fmap(f, lex_comments.clone());
     let parser = applicative(parser, lex_whitespace.clone());
-    let parser = applicative(parser, greedy(lex_keyword));
+    let parser = applicative(parser, greedy(lex_token));
     println!("{:?}", parser.run(input)[0].0);
 
     todo!()
