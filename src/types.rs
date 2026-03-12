@@ -15,10 +15,14 @@ pub enum Keyword {
 
 #[derive(Clone, Copy, Debug)]
 pub enum Punctuation {
-    POpen, PClose,   // () parenthesis
-    SOpen, SClose,   // [] square
-    COpen, CClose,   // {} curly
-    Comma, Semicolon // , ; (... duhh)
+    POpen,
+    PClose, // () parenthesis
+    SOpen,
+    SClose, // [] square
+    COpen,
+    CClose, // {} curly
+    Comma,
+    Semicolon, // , ; (... duhh)
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -56,7 +60,7 @@ pub enum Token {
     // TypePrimitive(TypePrimitive),
     TypePrimitive,
     Keyword(Keyword),
-    Punctuation(Punctuation)
+    Punctuation(Punctuation),
 }
 
 #[derive(Clone, Copy, Debug)]

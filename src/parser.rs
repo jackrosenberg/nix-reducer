@@ -126,10 +126,7 @@ where
 /// OUTPUT:: Symbol -> [(B, [Symbol])]
 /// ex.:
 /// fmap(concat(), applicative(symbol a, symbol b)).run("ab") -> [("ab"), []]
-pub fn fmap<'a, A, B, Sym>(
-    f: impl Fn(A) -> B + 'a,
-    p: Parser<'a, Sym, A>
-) -> Parser<'a, Sym, B>
+pub fn fmap<'a, A, B, Sym>(f: impl Fn(A) -> B + 'a, p: Parser<'a, Sym, A>) -> Parser<'a, Sym, B>
 where
     A: Clone + 'a,
     B: Clone,
@@ -145,10 +142,7 @@ where
     }
 }
 // ignore the result of the parser and return a const
-pub fn fmap_l<'a, A, B, Sym>(
-    r: B,
-    p: Parser<'a, Sym, A>
-) -> Parser<'a, Sym, B>
+pub fn fmap_l<'a, A, B, Sym>(r: B, p: Parser<'a, Sym, A>) -> Parser<'a, Sym, B>
 where
     A: Clone + 'a,
     B: Clone + 'a,
@@ -183,8 +177,8 @@ where
     }
 }
 // TODO
-// rahhh this function almost got me, 
-// haskell and it's glorious type system. 
+// rahhh this function almost got me,
+// haskell and it's glorious type system.
 pub fn applicative_l<'a, A, B, Sym>(
     p: Parser<'a, Sym, impl Clone + Fn(B) -> A + 'a>,
     q: Parser<'a, Sym, B>,
@@ -249,13 +243,7 @@ where
     Parser {
         parser: Arc::new(move |xs: &Vec<Sym>| {
             let r = p.run(xs);
-            if r.is_empty() {
-                q.clone()
-            }
-            else {
-                p.clone()
-            }
-            .run(xs)
+            if r.is_empty() { q.clone() } else { p.clone() }.run(xs)
         }),
     }
 }
@@ -350,16 +338,13 @@ where
     first(many(p))
 }
 
-
-pub fn greedy_choice<'a, Sym, Res>(
-    ps: Vec<Parser<'a, Sym, Res>>
-) -> Parser<'a, Sym, Res> 
+pub fn greedy_choice<'a, Sym, Res>(ps: Vec<Parser<'a, Sym, Res>>) -> Parser<'a, Sym, Res>
 where
     Sym: Clone + 'a,
     Res: Clone + 'a,
 {
     // check if needs to be swapped, make sure that the empty parser does not
     // go first, since the whole thing will fail
-    ps.into_iter().fold(Parser::empty(), |acc, elem| biased_choice(acc, elem))
+    ps.into_iter()
+        .fold(Parser::empty(), |acc, elem| biased_choice(acc, elem))
 }
-
