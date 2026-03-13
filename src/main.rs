@@ -1,3 +1,4 @@
+use regex::Regex;
 use std::{
     env,
     fmt::{Debug, Display},
@@ -65,8 +66,17 @@ fn lex_tokens(input: &Vec<String>) -> Vec<Token> {
     // https://nix.dev/manual/nix/2.28/language/identifiers.html
     // not going to check that it's not a keyword yet, will do
     // that later if it's needed
+    fn is_ident_start(string: &String) -> bool { 
+        let c = string.chars().next().expect("is_ident_start failed"); 
+        matches!(c, 
+            'a'..='z' |
+            'A'..='Z' |
+            '0'..='9' |
+            '_'
+        )
+    }
     fn is_ident(string: &String) -> bool {
-        let c = string.chars().nth(0).expect("is_ident failed"); 
+        let c = string.chars().next().expect("is_ident failed"); 
         matches!(c, 
             'a'..='z' |
             'A'..='Z' |
@@ -76,11 +86,47 @@ fn lex_tokens(input: &Vec<String>) -> Vec<Token> {
             '-' 
         )
     }
-    let ident = |ident: Vec<String>| {
-        // println!("ident {:?}", &ident);
-        Token::TypePrimitive(TypePrimitive::Identifier(ident.into_iter().collect::<String>()))
-    } ;
-    let identifier = fmap(ident, greedy1(Parser::satisfy(is_ident)));
+    let identifier = |ident_start: String| {
+        move |rest: Vec<String>| {
+            let res = format!("{}{}", ident_start.clone(), (rest.into_iter().collect::<String>()));
+            Token::TypePrimitive(TypePrimitive::Identifier(res))
+        }
+    };
+    let identifier = fmap(identifier, Parser::satisfy(is_ident_start));
+    let identifier = applicative(identifier, greedy(Parser::satisfy(is_ident)));
+
+    // todo interpolation elems
+    // https://nix.dev/manual/nix/2.28/language/string-literals.html
+    fn is_str_char(string: &String) -> bool {
+        // not allowed to match these chars
+        if let Some(c) = string.chars().next() {
+            return !matches!(c, '\"' | '\\' | '$')
+        }
+        unreachable!();
+    }
+    let string_lit = move |open_quotes: Vec<String>| {
+        let open_quotes = open_quotes.clone();
+        move |string: Vec<String>| {
+            let open_quotes = open_quotes.clone();
+            let string = string.clone();
+            move |close_quotes: Vec<String>| {
+
+                Token::TypePrimitive(TypePrimitive::String(
+                    format!("{}{}{}", 
+                        open_quotes.clone().into_iter().collect::<String>(),
+                        string.clone().into_iter().collect::<String>(),
+                        close_quotes.into_iter().collect::<String>())
+                ))
+            }
+        }
+    };
+    let standard_quotes = vec![String::from("\"")];
+    let standard_quotes = Parser::token(&standard_quotes);
+    // let single_quotes = vec![String::from("\'"), String::from("\'")];
+    
+    let string_literal = fmap(string_lit, standard_quotes.clone());
+    let string_literal = applicative(string_literal, greedy(Parser::satisfy(is_str_char)));
+    let string_literal = applicative(string_literal, standard_quotes.clone());
 
     // god this is verbose and ugly
     let keyword_pairs: [(&str, Token); 11] = [
@@ -156,6 +202,7 @@ fn lex_tokens(input: &Vec<String>) -> Vec<Token> {
         .collect::<Vec<_>>()
     ;
     lexers.push(identifier);
+    lexers.push(string_literal.clone());
 
     let lex_token = greedy_choice(lexers);
 
@@ -232,26 +279,17 @@ fn lex_tokens(input: &Vec<String>) -> Vec<Token> {
     // // let final_parser = applicative(final_parser, Parser::eof());
     // let final_parser = applicative(final_parser, Parser::succeed(()));
 
-    // println!("fin {:?}", final_parser.run(input)[0].0);
+    
 
     let tmp = lex_whitespace.clone().run(input);
-    // let tmp = l_comments.clone().run(&tmp[0].1);
-    // let tmp = lex_comment.clone().run(&tmp[0].1);
     let tmp = parser.clone().run(&tmp[0].1);
-    // let tmp = l_tokens.clone().run(&tmp[0].1);
-    // let tmp = l_tokens.clone().run(&tmp[0].1);
-    // let tmp = l_tokens.clone().run(&tmp[0].1);
-    // let tmp = l_tokens.clone().run(&tmp[0].1);
-    // let tmp = l_tokens.clone().run(&tmp[0].1);
-    // let tmp = l_tokens.clone().run(&tmp[0].1);
-    // let tmp = l_tokens.clone().run(&tmp[0].1);
-    // let tmp = l_tokens.clone().run(&tmp[0].1);
-    // let tmp = l_tokens.clone().run(&tmp[0].1);
-    // let tmp = l_tokens.clone().run(&tmp[0].1);
-    // let tmp = l_tokens.clone().run(&tmp[0].1);
-    // let tmp = l_tokens.clone().run(&tmp[0].1);
-    // let tmp = l_tokens.clone().run(&tmp[0].1);
+    // let tmp = standard_quotes.clone().run(&tmp[0].1);
+    // let tmp = is_str_char(&String::from("\""));
+    // let tmp = greedy(Parser::satisfy(is_str_char)).run(&tmp[0].1);
+    // let tmp = quotes.clone().run(&tmp[0].1);
     println!("tmp {:?}", tmp[0].0);
+    // println!("tmp {:?}", tmp);
+
 
 
     // final_parser.run(input)[0].0.clone()
