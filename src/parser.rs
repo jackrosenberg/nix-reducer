@@ -44,6 +44,24 @@ where
     }
 }
 
+impl<'a, Sym> Parser<'a, Sym, ()> 
+where
+    Sym: Clone
+{
+    /// succeed only when find end of file
+    pub fn eof() -> Self {
+        Self {
+            parser: Arc::new(move |input: &Vec<Sym>| {
+                if input.is_empty() {
+                    Parser::succeed(())
+                } else {
+                    Parser::empty()
+                }.run(input)
+            })
+        }
+    }
+}
+
 impl<'a, Sym> Parser<'a, Sym, Sym>
 where
     Sym: PartialEq + Clone + 'a,
@@ -322,6 +340,7 @@ where
     }
 }
 
+/// takes an option p , and a default d, returns default if p fails
 pub fn option<'a, Sym, Res>(p: Parser<'a, Sym, Res>, d: Res) -> Parser<'a, Sym, Res>
 where
     Sym: Clone + 'a,

@@ -8,7 +8,7 @@ use std::{
 pub mod parser;
 pub mod types;
 
-use crate::parser::{applicative, fmap, greedy, greedy_choice, many, many1, Parser};
+use crate::parser::{applicative, fmap, greedy, greedy_choice, option, many, many1, Parser};
 use crate::types::{Keyword, Operator, Punctuation, Token};
 
 fn main() {
@@ -43,7 +43,7 @@ fn lex_tokens(input: &Vec<String>) -> Vec<types::Token> {
     let not_newline = greedy(Parser::satisfy(|c| c != "\n"));
     let f = move |t: Vec<String>| move |cs: Vec<String>| [t.clone(), cs].concat();
     let comment_ident = vec![String::from("#")];
-    let lex_comments = applicative(fmap(f, Parser::token(&comment_ident)), not_newline);
+    let lex_comment = applicative(fmap(f, Parser::token(&comment_ident)), not_newline);
 
     // god this is verbose and ugly
     let keyword_pairs: [(&str, Token); 11] = [
@@ -118,44 +118,75 @@ fn lex_tokens(input: &Vec<String>) -> Vec<types::Token> {
         .collect(),
     );
 
-    fn func<F1, F2, F3, F4, F5>(f: F1) -> F1
+
+    fn ignore_whitespace<F1, F2>(f: F1) -> F1
     where
-        F1: Fn(Vec<String>) -> F2,
-        F2: Fn(Vec<String>) -> F3,
-        F3: Fn(Token)       -> F4,
-        F4: Fn(Vec<String>) -> F5,
-        F5: Fn(Token)       -> Vec<Token>,
+        F1: Fn(Token) -> F2,
+        F2: Fn(Vec<String>) -> Token
     {
         f
     }
+    let ignore_whitespace = ignore_whitespace(
+        |tk| {
+            move |cms| {
+                tk
+            }
+        }
+    );
 
-    let f = func(|a: Vec<String>| {
-        // let a = a.clone();
-        // println!("a: {:?}", a);
-        |b: Vec<String>| {
-            // println!("b: {:?}", b);
-            |tkns: Token| {
-                // println!("tk1: {:?}", tkns);
-                move |c: Vec<String>| {
-                    // println!("c: {:?}", c);
-                    let tkns = tkns.clone();
-                    move |tkns2: Token| {
-                        let tkns2 = tkns2.clone();
-                        // println!("rks2: {:?}", tkns2.clone());
-                        vec![tkns, tkns2]
+    fn ignore_comments<F1, F2>(f: F1) -> F1
+    where
+        F1: Fn(Vec<Vec<String>>) -> F2,
+        F2: Fn(Token)            -> Token
+    { 
+        f
+    }
+    let ignore_comments = ignore_comments(
+        |cms| {
+            |tk| {
+                tk
+            }
+        }
+    );
+
+    fn ignore_all_sans_tokens<F1, F2, F3, F4>(f: F1) -> F1
+    where 
+        F1: Fn(Vec<String>) -> F2,
+        F2: Fn(Vec<Token>) -> F3,
+        F3: Fn(Vec<Vec<String>>) -> F4,
+        F4: Fn(()) -> Vec<Token>
+    { 
+        f
+    }
+    let ignore_all_sans_tokens = ignore_all_sans_tokens(
+        |wh| {
+            |tks| {
+                move |cms| {
+                    let tks = tks.clone();
+                    move |eof| {
+                        tks.clone()
                     }
                 }
             }
         }
-    });
+    );
 
-    let parser = fmap(f, lex_comments);
-    let parser = applicative(parser, lex_whitespace.clone());
-    let parser = applicative(parser, lex_token.clone());
-    let parser = applicative(parser, lex_whitespace.clone());
-    let parser = applicative(parser, lex_token.clone());
+    // parse and ignore all comments
+    let l_comments = option(greedy(lex_comment), vec![]);
 
-    println!("{:?}", parser.run(input)[0].0);
+    let l_tokens = fmap(ignore_whitespace, lex_token);
+    let l_tokens = applicative(l_tokens, lex_whitespace.clone());
+
+    let parser = fmap(ignore_comments, l_comments.clone());
+    let parser = applicative(parser, l_tokens);
+    let parser = greedy(parser);
+
+    let final_parser = fmap(ignore_all_sans_tokens, lex_whitespace.clone());
+    let final_parser = applicative(final_parser, parser.clone());
+    let final_parser = applicative(final_parser, l_comments.clone());
+    let final_parser = applicative(final_parser, Parser::eof());
+
+    println!("{:?}", final_parser.run(input)[0].0);
 
     todo!()
 }
