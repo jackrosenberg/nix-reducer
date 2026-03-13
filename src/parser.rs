@@ -3,8 +3,6 @@ use std::{
     sync::Arc,
 };
 
-pub mod helpers;
-
 pub struct Parser<'a, Sym, Res> {
     pub parser: Arc<dyn Fn(&Vec<Sym>) -> Vec<(Res, Vec<Sym>)> + 'a>,
 }
@@ -355,6 +353,14 @@ where
     Res: Clone + 'a,
 {
     first(many(p))
+}
+
+pub fn greedy1<'a, Sym, Res>(p: Parser<'a, Sym, Res>) -> Parser<'a, Sym, Vec<Res>>
+where
+    Sym: Clone + 'a,
+    Res: Clone + 'a,
+{
+    first(many1(p))
 }
 
 pub fn greedy_choice<'a, Sym, Res>(ps: Vec<Parser<'a, Sym, Res>>) -> Parser<'a, Sym, Res>

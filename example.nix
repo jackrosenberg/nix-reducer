@@ -1,5 +1,5 @@
 # this string should be ignored by the lexer!!!
-rec {
+{
   options,
   config,
   lib,

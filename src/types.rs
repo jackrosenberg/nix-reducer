@@ -22,43 +22,46 @@ pub enum Punctuation {
     COpen,
     CClose, // {} curly
     Comma,
-    Semicolon, // , ; (... duhh)
+    Semicolon,
+    Colon,
+    Period,
 }
 
 #[derive(Clone, Copy, Debug)]
 pub enum Operator {
-    Eq,
-    Neq,
-    Leq,
-    Geq,
-    Land,
-    Lor,
-    Impl,
+    LEq,  // LogicalEquals
+    LNEq, // LogicalNotEquals
+    LAnd, // logical and
+    LOr,  // logical or
+    LImpl, // logical implies
+    LessEq,  // LessThanEquals
+    GrEq,   // GreatherThanEquals
+    Assign,  // GreatherThanEquals
     Update,
     Concat,
     PipeFrom, //REQUIREEXPERIMENTALFEATURE
     PipeInto, //REQUIREEXPERIMENTALFEATURE
 }
 
-// #[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub enum TypePrimitive {
     Integer(usize),
     Float(f64),
     Boolean(bool),
     String(String),
+    Identifier(String),
     Path(String),
     Null(NULL),
-    Attrset(Box<AttrSet>),
+    // Attrset(Box<AttrSet>),
     List(Vec<TypePrimitive>),
     Function(fn(Vec<TypePrimitive>) -> TypePrimitive),
     External(NULL), // i think these are custom values, defined by users? TODO!!
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub enum Token {
     Operator(Operator),
-    // TypePrimitive(TypePrimitive),
-    TypePrimitive,
+    TypePrimitive(TypePrimitive),
     Keyword(Keyword),
     Punctuation(Punctuation),
 }
