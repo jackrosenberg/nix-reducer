@@ -28,13 +28,13 @@ fn main() {
     // println!("{:?} ", parser.run(&contents));
 
     // println!("{:?} ", contents);
-    let tokens = lex_tokens(&contents);
+    let tokens = lex_tokens(&contents[..]);
     // println!("{:?} ", tokens);
 
 
 }
 
-fn lex_tokens(input: &Vec<String>) -> Vec<Token> {
+fn lex_tokens(input: &[String]) -> Vec<Token> {
     // lex out the whitespaces and comments
 
     /// Returns True for any Unicode space character, and the control characters
@@ -56,13 +56,10 @@ fn lex_tokens(input: &Vec<String>) -> Vec<Token> {
         }
     };
     let comment_ident = vec![String::from("#")];
-    let lex_comment = fmap(f, Parser::token(&comment_ident));
+    let lex_comment = fmap(f, Parser::token(comment_ident));
     let lex_comment = applicative(lex_comment, not_newline);
     let lex_comment = applicative(lex_comment, lex_whitespace.clone());
 
-
-
-    
     // https://nix.dev/manual/nix/2.28/language/identifiers.html
     // not going to check that it's not a keyword yet, will do
     // that later if it's needed
@@ -121,9 +118,9 @@ fn lex_tokens(input: &Vec<String>) -> Vec<Token> {
         }
     };
     let standard_quotes = vec![String::from("\"")];
-    let standard_quotes = Parser::token(&standard_quotes);
+    let standard_quotes = Parser::token(standard_quotes);
     // let single_quotes = vec![String::from("\'"), String::from("\'")];
-    
+
     let string_literal = fmap(string_lit, standard_quotes.clone());
     let string_literal = applicative(string_literal, greedy(Parser::satisfy(is_str_char)));
     let string_literal = applicative(string_literal, standard_quotes.clone());
@@ -173,13 +170,13 @@ fn lex_tokens(input: &Vec<String>) -> Vec<Token> {
 
     fn gen_key_parser(key_pair: (&'_ str, Token)) -> Parser<'_, String, Token> {
         Parser {
-            parser: Arc::new(move |input: &Vec<String>| {
+            parser: Arc::new(move |input: &[String]| {
                 let (word, token) = key_pair.clone();
                 // ex ["r","e","c"];
                 if input[..word.len()]
                     == word.chars().map(|c| c.to_string()).collect::<Vec<String>>()
                 {
-                    vec![(token, input[word.len()..].to_vec())]
+                    vec![(token, &input[word.len()..])]
                 } else {
                     Parser::empty().run(input)
                 }
@@ -279,18 +276,15 @@ fn lex_tokens(input: &Vec<String>) -> Vec<Token> {
     // // let final_parser = applicative(final_parser, Parser::eof());
     // let final_parser = applicative(final_parser, Parser::succeed(()));
 
-    
 
     let tmp = lex_whitespace.clone().run(input);
-    let tmp = parser.clone().run(&tmp[0].1);
+    let tmp = parser.clone().run(tmp[0].1);
     // let tmp = standard_quotes.clone().run(&tmp[0].1);
     // let tmp = is_str_char(&String::from("\""));
     // let tmp = greedy(Parser::satisfy(is_str_char)).run(&tmp[0].1);
     // let tmp = quotes.clone().run(&tmp[0].1);
     println!("tmp {:?}", tmp[0].0);
     // println!("tmp {:?}", tmp);
-
-
 
     // final_parser.run(input)[0].0.clone()
     todo!()

@@ -4,7 +4,7 @@ use std::{
 };
 
 pub struct Parser<'a, Sym, Res> {
-    pub parser: Arc<dyn Fn(&Vec<Sym>) -> Vec<(Res, Vec<Sym>)> + 'a>,
+    pub parser: Arc<dyn Fn(&'a [Sym]) -> Vec<(Res, &'a[Sym])> + 'a>,
 }
 
 impl<'a, Sym, Res> Clone for Parser<'a, Sym, Res> {
@@ -24,7 +24,7 @@ where
     /// list of (partial) parses
     /// INPUT :: [Symbol]
     /// OUTPUT:: [(Result, [Symbol])]
-    pub fn run(&self, input: &Vec<Sym>) -> Vec<(Res, Vec<Sym>)> {
+    pub fn run(&self, input: &'a [Sym]) -> Vec<(Res, &'a [Sym])> {
         if input.is_empty() {
             return vec![];
         }
@@ -32,12 +32,12 @@ where
     }
     pub fn succeed(a: Res) -> Self {
         Self {
-            parser: Arc::new(move |input: &Vec<Sym>| vec![(a.clone(), input.clone())]),
+            parser: Arc::new(move |input: &[Sym]| vec![(a.clone(), &input[..])]),
         }
     }
     pub fn empty() -> Self {
         Self {
-            parser: Arc::new(move |_: &Vec<Sym>| vec![]),
+            parser: Arc::new(move |_: &[Sym]| vec![]),
         }
     }
 }
@@ -49,12 +49,12 @@ where
     /// succeed only when find end of file
     pub fn eof() -> Self {
         Self {
-            parser: Arc::new(move |input: &Vec<Sym>| {
+            parser: Arc::new(move |input: &[Sym]| {
                 if input.is_empty() {
-                    Parser::succeed(())
+                    (Parser::succeed(()).parser)(input)
                 } else {
-                    Parser::empty()
-                }.run(input)
+                    (Parser::empty().parser)(input)
+                }
             })
         }
     }
@@ -71,11 +71,11 @@ where
     /// Parser::symbol("A").run([hello world]) -> []
     pub fn symbol(a: Sym) -> Self {
         Self {
-            parser: Arc::new(move |input: &Vec<Sym>| {
+            parser: Arc::new(move |input: &[Sym]| {
                 if input.is_empty() || a != input[0] {
                     vec![]
                 } else {
-                    vec![(input[0].clone(), input[1..].to_vec())]
+                    vec![(input[0].clone(), &input[1..])]
                 }
             }),
         }
@@ -87,11 +87,11 @@ where
     /// symbol('e').parser.run([hello world]) -> []
     pub fn any_symbol() -> Self {
         Self {
-            parser: Arc::new(move |input: &Vec<Sym>| {
+            parser: Arc::new(move |input: &[Sym]| {
                 if input.is_empty() {
                     vec![]
                 } else {
-                    vec![(input[0].clone(), input[1..].to_vec())]
+                    vec![(input[0].clone(), &input[1..])]
                 }
             }),
         }
@@ -102,11 +102,11 @@ where
     /// Parser::satisfy().run(vec!["B","C","D"]) -> [("B", ["C", "D"])]
     pub fn satisfy(c: impl Fn(&Sym) -> bool + 'a) -> Self {
         Self {
-            parser: Arc::new(move |input: &Vec<Sym>| {
+            parser: Arc::new(move |input: &[Sym]| {
                 if input.is_empty() || !(c)(&input[0].clone()) {
                     vec![]
                 } else {
-                    vec![(input[0].clone(), input[1..].to_vec())]
+                    vec![(input[0].clone(), &input[1..])]
                 }
             }),
         }
@@ -120,14 +120,14 @@ impl<'a, Sym> Parser<'a, Sym, Vec<Sym>>
 where
     Sym: PartialEq + Clone + 'a,
 {
-    pub fn token(word: &'a Vec<Sym>) -> Self {
+    pub fn token(word: Vec<Sym>) -> Self {
         Self {
-            parser: Arc::new(move |input: &Vec<Sym>| {
+            parser: Arc::new(move |input: &[Sym]| {
                 let k = word.len();
                 if input.is_empty() || &input[..k] != word {
                     vec![]
                 } else {
-                    vec![(input[..k].to_vec(), input[k..].to_vec())]
+                    vec![(input[..k].to_vec(), &input[k..])]
                 }
             }),
         }
@@ -145,15 +145,15 @@ where
 pub fn fmap<'a, A, B, Sym>(f: impl Fn(A) -> B + 'a, p: Parser<'a, Sym, A>) -> Parser<'a, Sym, B>
 where
     A: Clone + 'a,
-    B: Clone,
+    B: Clone + 'a,
     Sym: Clone + 'a,
 {
     Parser {
-        parser: Arc::new(move |xs: &Vec<Sym>| {
+        parser: Arc::new(move |xs: &'a [Sym]| {
             p.run(xs)
                 .into_iter()
-                .map(|(y, ys)| ((f)(y), ys))
-                .collect::<Vec<_>>()
+                .map(|(y, ys): (A, &'a [Sym])| ((f)(y), ys))
+                .collect::<Vec<(B, &'a [Sym])>>()
         }),
     }
 }
@@ -184,7 +184,7 @@ where
     Sym: Clone + 'a,
 {
     Parser {
-        parser: Arc::new(move |xs: &Vec<Sym>| {
+        parser: Arc::new(move |xs: &'a [Sym]| {
             p.run(xs)
                 .into_iter()
                 .flat_map(|(f, ys)| q.run(&ys).into_iter().map(move |(r, zs)| ((f)(r), zs)))
@@ -241,7 +241,7 @@ where
     Res: Clone + 'a,
 {
     Parser {
-        parser: Arc::new(move |xs: &Vec<Sym>| {
+        parser: Arc::new(move |xs: &[Sym]| {
             [p.run(xs), q.run(xs)].concat() // expensive, maybe refactor
         }),
     }
@@ -257,7 +257,7 @@ where
     Res: Clone + 'a,
 {
     Parser {
-        parser: Arc::new(move |xs: &Vec<Sym>| {
+        parser: Arc::new(move |xs: &[Sym]| {
             let r = p.run(xs);
             if r.is_empty() { q.clone() } else { p.clone() }.run(xs)
         }),
@@ -292,7 +292,7 @@ where
     // this might be the ugliest parser i have written
     // but it works :)
     Parser {
-        parser: Arc::new(move |input: &Vec<Sym>| {
+        parser: Arc::new(move |input: &[Sym]| {
             // base case
             if p.run(input).is_empty() {
                 Parser::succeed(vec![])
@@ -327,7 +327,7 @@ where
     Sym: Clone + 'a,
 {
     Parser {
-        parser: Arc::new(move |input: &Vec<Sym>| {
+        parser: Arc::new(move |input: &[Sym]| {
             let mut r = p.run(input);
             if let Some(fst) = r.pop() {
                 vec![fst]
