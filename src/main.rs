@@ -1,4 +1,3 @@
-use regex::Regex;
 use std::{
     env,
     fmt::{Debug, Display},
@@ -9,7 +8,7 @@ use std::{
 pub mod parser;
 pub mod types;
 
-use crate::parser::{applicative, fmap, choice, greedy, greedy_choice, option, many, greedy1, Parser};
+use crate::parser::{applicative, biased_choice, choice, fmap, greedy, greedy1, greedy_choice, greedy_until, many, option, Parser};
 use crate::types::{Keyword, Operator, Punctuation, Token, TypePrimitive};
 
 fn main() {
@@ -92,72 +91,50 @@ fn lex_tokens(input: &[String]) -> Vec<Token> {
     let identifier = fmap(identifier, Parser::satisfy(is_ident_start));
     let identifier = applicative(identifier, greedy(Parser::satisfy(is_ident)));
 
-    // todo interpolation elems
-    // https://nix.dev/manual/nix/2.28/language/string-literals.html
-    fn is_str_char(string: &String) -> bool {
-        // not allowed to match these chars
-        if let Some(c) = string.chars().next() {
-            return !matches!(c, '\"' | '\\' | '$')
+    let string_literal = {
+        // todo interpolation elems
+        // https://nix.dev/manual/nix/2.28/language/string-literals.html
+        fn is_str_char(string: &String) -> bool {
+            // not allowed to match these chars
+            if let Some(c) = string.chars().next() {
+                return !matches!(c, '\"' | '\\' | '$')
+            }
+            unreachable!();
         }
-        unreachable!();
-    }
-    let string_lit = move |open_quotes: Vec<String>| {
-        let open_quotes = open_quotes.clone();
-        move |string: Vec<String>| {
-            let open_quotes = open_quotes.clone();
-            let string = string.clone();
-            move |close_quotes: Vec<String>| {
 
+        fn is_indented_str_char(string: &String) -> bool {
+            // voodoo
+            if let Some(c) = string.chars().next() {
+                // return !matches!(c, '\'' | '\\' | '$')
+                return true
+            }
+            unreachable!();
+        }
+        let string_lit = move |open_quotes: Vec<String>| {
+            let open_quotes = open_quotes.clone();
+            move |rest_including_close_quotes: Vec<Vec<String>>| {
                 Token::TypePrimitive(TypePrimitive::String(
-                    format!("{}{}{}", 
+                    format!("{}{}", 
                         open_quotes.clone().into_iter().collect::<String>(),
-                        string.clone().into_iter().collect::<String>(),
-                        close_quotes.into_iter().collect::<String>())
+                        rest_including_close_quotes.into_iter().flatten().collect::<String>())
                 ))
             }
+        };
+
+        let double_quotes = Parser::token(vec![String::from("\"")]);
+        let two_single_quotes = Parser::token(vec![String::from("\'"); 2]);
+
+        fn lex_till_end_str_lit<'a>(repeater: Parser<'a, String, Vec<String>>, terminator: Parser<'a, String, Vec<String>>) -> Parser<'a, String, Vec<Vec<String>>> {
+            greedy_until(terminator, repeater)
         }
+
+        let string_literal = fmap(string_lit, double_quotes.clone());
+        let string_literal = applicative(string_literal, lex_till_end_str_lit(double_quotes.clone(), fmap(|r| vec![r], Parser::satisfy(is_str_char))));
+
+        let string_literal_indented = fmap(string_lit, two_single_quotes.clone());
+        let string_literal_indented = applicative(string_literal_indented, lex_till_end_str_lit(two_single_quotes.clone(), fmap(|r| vec![r], Parser::satisfy(is_indented_str_char))));
+        choice(string_literal, string_literal_indented)
     };
-
-    fn is_indented_str_char(string: &String) -> bool {
-        // not allowed to match these chars
-        if let Some(c) = string.chars().next() {
-            return !matches!(c, '\'' | '\\' | '$')
-        }
-        unreachable!();
-    }
-
-    let indented_string_lit = move |open_quotes: Vec<String>| {
-        let open_quotes = open_quotes.clone();
-        move |string: Vec<String>| {
-            let open_quotes = open_quotes.clone();
-            let string = string.clone();
-            move |close_quotes: Vec<String>| {
-
-                Token::TypePrimitive(TypePrimitive::String(
-                    format!("{}{}{}", 
-                        open_quotes.clone().into_iter().collect::<String>(),
-                        string.clone().into_iter().collect::<String>(),
-                        close_quotes.into_iter().collect::<String>())
-                ))
-            }
-        }
-    };
-
-    let double_quotes = vec![String::from("\"")];
-    let double_quotes = Parser::token(double_quotes);
-
-    let single_quotes = vec![String::from("\'"), String::from("\'")];
-    let single_quotes = Parser::token(single_quotes);
-
-    let string_literal_double = fmap(string_lit, double_quotes.clone());
-    let string_literal_double = applicative(string_literal_double, greedy(Parser::satisfy(is_indented_str_char)));
-    let string_literal_double = applicative(string_literal_double, double_quotes.clone());
-
-    let string_literal_single = fmap(indented_string_lit, single_quotes.clone());
-    let string_literal_single = applicative(string_literal_single, greedy(Parser::satisfy(is_indented_str_char)));
-    let string_literal_single = applicative(string_literal_single, single_quotes.clone());
-
-    let string_literal = choice(string_literal_single.clone(), string_literal_double);
 
     // god this is verbose and ugly
     let keyword_pairs: [(&str, Token); 11] = [
@@ -309,15 +286,14 @@ fn lex_tokens(input: &[String]) -> Vec<Token> {
 
 
     let tmp = lex_whitespace.clone().run(input);
-    let tmp = single_quotes.clone().run(tmp[0].1);
-    let tmp = greedy(Parser::satisfy(is_indented_str_char)).run(tmp[0].1);
+    // let tmp = double_quotes.clone().run(tmp[0].1);
+    // let tmp = string_literal.clone().run(tmp[0].1);
     // let tmp = single_quotes.clone().run(tmp[0].1);
-    // let tmp = parser.clone().run(tmp[0].1);
-    // let tmp = string_literal_single.clone().run(tmp[0].1);
+    let tmp = parser.clone().run(tmp[0].1);
     // let tmp = is_str_char(&String::from("\""));
     // let tmp = quotes.clone().run(&tmp[0].1);
     println!("res {:?}", tmp[0].0);
-    // println!("left {:?}", tmp[0]);
+    println!("left {:?}", &tmp[0].1[..15]);
     // println!("tmp {:?}", tmp);
 
     // final_parser.run(input)[0].0.clone()

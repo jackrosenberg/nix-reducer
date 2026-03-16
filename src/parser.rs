@@ -373,3 +373,32 @@ where
     ps.into_iter()
         .fold(Parser::empty(), |acc, elem| biased_choice(acc, elem))
 }
+
+/// biased_choice to take as many p, until one q is found 
+pub fn greedy_until<'a, Sym, Res>(p: Parser<'a, Sym, Res>, q: Parser<'a, Sym, Res>) -> Parser<'a, Sym, Vec<Res>>
+where
+    Sym: Clone + 'a,
+    Res: Clone + 'a,
+{
+    Parser {
+        parser: Arc::new(move |xs: &[Sym]| {
+            // prepends x to xs
+            fn f<Sym>(x: &Sym, xs: Vec<Sym>) -> Vec<Sym>
+            where
+                Sym: Clone,
+            {
+                let mut res = xs.to_vec();
+                res.insert(0, x.clone());
+                res
+            }
+            let f = move |x: Res| move |xs: Vec<Res>| f(&x, xs);
+
+            let r = q.run(xs);
+            if !r.is_empty() {
+                fmap(|e| vec![e], q.clone())
+            } else {
+                applicative(fmap(f, p.clone()), greedy_until(p.clone(), q.clone()))
+            }.run(xs)
+        }),
+    }
+}
