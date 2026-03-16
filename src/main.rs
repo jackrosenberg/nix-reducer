@@ -117,13 +117,47 @@ fn lex_tokens(input: &[String]) -> Vec<Token> {
             }
         }
     };
-    let standard_quotes = vec![String::from("\"")];
-    let standard_quotes = Parser::token(standard_quotes);
-    // let single_quotes = vec![String::from("\'"), String::from("\'")];
 
-    let string_literal = fmap(string_lit, standard_quotes.clone());
-    let string_literal = applicative(string_literal, greedy(Parser::satisfy(is_str_char)));
-    let string_literal = applicative(string_literal, standard_quotes.clone());
+    fn is_indented_str_char(string: &String) -> bool {
+        // not allowed to match these chars
+        if let Some(c) = string.chars().next() {
+            return !matches!(c, '\'' | '\\' | '$')
+        }
+        unreachable!();
+    }
+
+    let indented_string_lit = move |open_quotes: Vec<String>| {
+        let open_quotes = open_quotes.clone();
+        move |string: Vec<String>| {
+            let open_quotes = open_quotes.clone();
+            let string = string.clone();
+            move |close_quotes: Vec<String>| {
+
+                Token::TypePrimitive(TypePrimitive::String(
+                    format!("{}{}{}", 
+                        open_quotes.clone().into_iter().collect::<String>(),
+                        string.clone().into_iter().collect::<String>(),
+                        close_quotes.into_iter().collect::<String>())
+                ))
+            }
+        }
+    };
+
+    let double_quotes = vec![String::from("\"")];
+    let double_quotes = Parser::token(double_quotes);
+
+    let single_quotes = vec![String::from("\'"), String::from("\'")];
+    let single_quotes = Parser::token(single_quotes);
+
+    let string_literal_double = fmap(string_lit, double_quotes.clone());
+    let string_literal_double = applicative(string_literal_double, greedy(Parser::satisfy(is_indented_str_char)));
+    let string_literal_double = applicative(string_literal_double, double_quotes.clone());
+
+    let string_literal_single = fmap(indented_string_lit, single_quotes.clone());
+    let string_literal_single = applicative(string_literal_single, greedy(Parser::satisfy(is_indented_str_char)));
+    let string_literal_single = applicative(string_literal_single, single_quotes.clone());
+
+    let string_literal = choice(string_literal_single.clone(), string_literal_double);
 
     // god this is verbose and ugly
     let keyword_pairs: [(&str, Token); 11] = [
@@ -260,9 +294,6 @@ fn lex_tokens(input: &[String]) -> Vec<Token> {
     // parse and ignore all comments
     let l_comments = greedy(lex_comment.clone());
 
-    // parse and ignore all comments and spaces
-    // let l_cns = greedy(choice(lex_comment.clone(), lex_whitespace.clone()));
-
     let l_tokens = fmap(ignore_whitespace, lex_token.clone());
     let l_tokens = applicative(l_tokens, lex_whitespace.clone());
 
@@ -278,12 +309,15 @@ fn lex_tokens(input: &[String]) -> Vec<Token> {
 
 
     let tmp = lex_whitespace.clone().run(input);
-    let tmp = parser.clone().run(tmp[0].1);
-    // let tmp = standard_quotes.clone().run(&tmp[0].1);
+    let tmp = single_quotes.clone().run(tmp[0].1);
+    let tmp = greedy(Parser::satisfy(is_indented_str_char)).run(tmp[0].1);
+    // let tmp = single_quotes.clone().run(tmp[0].1);
+    // let tmp = parser.clone().run(tmp[0].1);
+    // let tmp = string_literal_single.clone().run(tmp[0].1);
     // let tmp = is_str_char(&String::from("\""));
-    // let tmp = greedy(Parser::satisfy(is_str_char)).run(&tmp[0].1);
     // let tmp = quotes.clone().run(&tmp[0].1);
-    println!("tmp {:?}", tmp[0].0);
+    println!("res {:?}", tmp[0].0);
+    // println!("left {:?}", tmp[0]);
     // println!("tmp {:?}", tmp);
 
     // final_parser.run(input)[0].0.clone()
