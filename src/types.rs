@@ -31,6 +31,7 @@ pub enum Punctuation {
 pub enum Operator {
     LEq,  // LogicalEquals
     LNEq, // LogicalNotEquals
+    LNeg, // LogicalNegate
     LAnd, // logical and
     LOr,  // logical or
     LImpl, // logical implies

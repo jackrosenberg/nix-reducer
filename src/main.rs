@@ -164,12 +164,13 @@ fn lex_tokens(input: &[String]) -> Vec<Token> {
         (".", Token::Punctuation(Punctuation::Period)),
     ];
 
-    let operator_pairs: [(&str, Token); 12] = [
+    let operator_pairs: [(&str, Token); 13] = [
         ("==", Token::Operator(Operator::LEq)),
         ("!=", Token::Operator(Operator::LNEq)),
+        ("!", Token::Operator(Operator::LNeg)),
         ("&&", Token::Operator(Operator::LAnd)),
         ("||", Token::Operator(Operator::LOr)),
-        ("=>", Token::Operator(Operator::LImpl)),
+        ("->", Token::Operator(Operator::LImpl)),
         ("<=", Token::Operator(Operator::LessEq)),
         (">=", Token::Operator(Operator::GrEq)),
         ("=" , Token::Operator(Operator::Assign)),
