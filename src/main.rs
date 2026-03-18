@@ -59,37 +59,39 @@ fn lex_tokens(input: &[String]) -> Vec<Token> {
     let lex_comment = applicative(lex_comment, not_newline);
     let lex_comment = applicative(lex_comment, lex_whitespace.clone());
 
-    // https://nix.dev/manual/nix/2.28/language/identifiers.html
-    // not going to check that it's not a keyword yet, will do
-    // that later if it's needed
-    fn is_ident_start(string: &String) -> bool { 
-        let c = string.chars().next().expect("is_ident_start failed"); 
-        matches!(c, 
-            'a'..='z' |
-            'A'..='Z' |
-            '0'..='9' |
-            '_'
-        )
-    }
-    fn is_ident(string: &String) -> bool {
-        let c = string.chars().next().expect("is_ident failed"); 
-        matches!(c, 
-            'a'..='z' |
-            'A'..='Z' |
-            '0'..='9' |
-            '_' | 
-            '\'' |
-            '-' 
-        )
-    }
-    let identifier = |ident_start: String| {
-        move |rest: Vec<String>| {
-            let res = format!("{}{}", ident_start.clone(), (rest.into_iter().collect::<String>()));
-            Token::TypePrimitive(TypePrimitive::Identifier(res))
+    let identifier = {
+        // https://nix.dev/manual/nix/2.28/language/identifiers.html
+        // not going to check that it's not a keyword yet, will do
+        // that later if it's needed
+        fn is_ident_start(string: &String) -> bool { 
+            let c = string.chars().next().expect("is_ident_start failed"); 
+            matches!(c, 
+                'a'..='z' |
+                'A'..='Z' |
+                '0'..='9' |
+                '_'
+            )
         }
+        fn is_ident(string: &String) -> bool {
+            let c = string.chars().next().expect("is_ident failed"); 
+            matches!(c, 
+                'a'..='z' |
+                'A'..='Z' |
+                '0'..='9' |
+                '_' | 
+                '\'' |
+                '-' 
+            )
+        }
+        let identifier = |ident_start: String| {
+            move |rest: Vec<String>| {
+                let res = format!("{}{}", ident_start.clone(), (rest.into_iter().collect::<String>()));
+                Token::TypePrimitive(TypePrimitive::Identifier(res))
+            }
+        };
+        let identifier = fmap(identifier, Parser::satisfy(is_ident_start));
+        applicative(identifier, greedy(Parser::satisfy(is_ident)))
     };
-    let identifier = fmap(identifier, Parser::satisfy(is_ident_start));
-    let identifier = applicative(identifier, greedy(Parser::satisfy(is_ident)));
 
     let string_literal = {
         // todo interpolation elems
@@ -97,7 +99,8 @@ fn lex_tokens(input: &[String]) -> Vec<Token> {
         fn is_str_char(string: &String) -> bool {
             // not allowed to match these chars
             if let Some(c) = string.chars().next() {
-                return !matches!(c, '\"' | '\\' | '$')
+                // return !matches!(c, '\"' | '\\' | '$')
+                return true
             }
             unreachable!();
         }
@@ -134,6 +137,19 @@ fn lex_tokens(input: &[String]) -> Vec<Token> {
         let string_literal_indented = fmap(string_lit, two_single_quotes.clone());
         let string_literal_indented = applicative(string_literal_indented, lex_till_end_str_lit(two_single_quotes.clone(), fmap(|r| vec![r], Parser::satisfy(is_indented_str_char))));
         choice(string_literal, string_literal_indented)
+    };
+
+    let interpolation_elem = {
+        let f = move |t: Vec<String>|
+            move |cs: Vec<String>| {
+               let t = t.clone();
+               let cs = cs.clone();
+               Token::TypePrimitive(TypePrimitive::InterpolationElement(
+                   [t, cs].concat().into_iter().collect::<String>()
+               ))
+        };
+        let parser = fmap(f, Parser::token(vec![String::from("$"), String::from("{")]));
+        applicative(parser, Parser::greedy_stack_symbol(String::from("}")))
     };
 
     // god this is verbose and ugly
@@ -212,6 +228,7 @@ fn lex_tokens(input: &[String]) -> Vec<Token> {
     ;
     lexers.push(identifier);
     lexers.push(string_literal.clone());
+    lexers.push(interpolation_elem.clone());
 
     let lex_token = greedy_choice(lexers);
 

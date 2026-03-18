@@ -118,7 +118,7 @@ where
 /// ex.: TODO
 impl<'a, Sym> Parser<'a, Sym, Vec<Sym>>
 where
-    Sym: PartialEq + Clone + Display + 'a,
+    Sym: PartialEq + Clone + 'a,
 {
     pub fn token(word: Vec<Sym>) -> Self {
         Self {
@@ -134,30 +134,19 @@ where
     }
     /// take untill the corresponding occurence of the requested symbol
     pub fn greedy_stack_symbol(a: Sym) -> Self {
-        // grosshack, but i can't be asked
-        fn opposite<Sym: Display>(symb: Sym) -> &'static str {
-            match &symb.to_string()[..] {
+        fn opposite(symb: Sym) -> &'static str {
+            match &symb[..] {
                 "{" => "}",
                 "}" => "{",
-                _   => ""
+                _   => unreachable!()
             }
         }
         Self {
             parser: Arc::new(move |input: &[Sym]| {
-                let mut depth = 0;
-                for (i, s) in input.iter().enumerate() {
-                    if s == &a {
-                        if depth == 0 { 
-                            return vec![(input[..i].to_vec(), &input[i..])]
-                        }
-                        depth -= 1; 
-                    }
-                    else if s.to_string() == opposite(s.to_string()) {
-                        depth += 1;
-                    }
-                }
-                // fail
-                Parser::empty().run(input)
+                input.iter()
+                    .fold(0, |(depth, res), elem| {
+                        if elem == a 
+                    })
             })
         }
     }

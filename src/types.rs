@@ -53,10 +53,7 @@ pub enum TypePrimitive {
     Identifier(String),
     Path(String),
     Null(NULL),
-    // Attrset(Box<AttrSet>),
-    List(Vec<TypePrimitive>),
-    Function(fn(Vec<TypePrimitive>) -> TypePrimitive),
-    External(NULL), // i think these are custom values, defined by users? TODO!!
+    InterpolationElement(String)
 }
 
 #[derive(Clone, Debug)]
