@@ -25,9 +25,6 @@ where
     /// INPUT :: [Symbol]
     /// OUTPUT:: [(Result, [Symbol])]
     pub fn run(&self, input: &'a [Sym]) -> Vec<(Res, &'a [Sym])> {
-        if input.is_empty() {
-            return vec![];
-        }
         (self.parser)(input)
     }
     pub fn succeed(a: Res) -> Self {
@@ -44,12 +41,13 @@ where
 
 impl<'a, Sym> Parser<'a, Sym, ()> 
 where
-    Sym: Clone
+    Sym: Clone + Debug
 {
     /// succeed only when find end of file
     pub fn eof() -> Self {
         Self {
             parser: Arc::new(move |input: &[Sym]| {
+                println!("{:?}", &input);
                 if input.is_empty() {
                     (Parser::succeed(()).parser)(input)
                 } else {
@@ -62,7 +60,7 @@ where
 
 impl<'a, Sym> Parser<'a, Sym, Sym>
 where
-    Sym: PartialEq + Clone + 'a,
+    Sym: PartialEq + Clone + Debug + 'a,
 {
     /// INPUT :: Symbol
     /// OUTPUT:: Symbol -> [(Result, [Symbol])]
@@ -124,7 +122,7 @@ where
         Self {
             parser: Arc::new(move |input: &[Sym]| {
                 let k = word.len();
-                if input.is_empty() || &input[..k] != word {
+                if input.is_empty() || input[..k] != word {
                     vec![]
                 } else {
                     vec![(input[..k].to_vec(), &input[k..])]
@@ -148,11 +146,11 @@ where
                 for (i, s) in input.iter().enumerate() {
                     if s == &a {
                         if depth == 0 { 
-                            return vec![(input[..i].to_vec(), &input[i..])]
+                            return vec![(input[..=i].to_vec(), &input[i+1..])]
                         }
                         depth -= 1; 
                     }
-                    else if s.to_string() == opposite(s.to_string()) {
+                    else if s.to_string() == opposite(a.to_string()) {
                         depth += 1;
                     }
                 }

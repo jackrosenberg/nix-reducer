@@ -28,34 +28,12 @@ fn main() {
 
     // println!("{:?} ", contents);
     let tokens = lex_tokens(&contents[..]);
-    // println!("{:?} ", tokens);
+    println!("{:?} ", tokens);
 
 
 }
 
 fn lex_tokens(input: &[String]) -> Vec<Token> {
-    /// Returns True for any Unicode space character, and the control characters
-    /// , "\f", "\v" are not supported by rust, lets hope this doesn't break!
-    fn is_space(string: &String) -> bool {
-        ["\t", "\n", "\r", " "].contains(&&string[..])
-    }
-    // can be nothing
-    let lex_whitespace = greedy(Parser::satisfy(is_space));
-
-    let not_newline = greedy(Parser::satisfy(|c| c != "\n"));
-
-    let f = move |t: Vec<String>| move |cs: Vec<String>| {
-        let t = t.clone();
-        let cs = cs.clone();
-        move |sp| {
-            let t = t.clone(); let cs = cs.clone();
-            [t.clone(), cs].concat()
-        }
-    };
-    let comment_ident = vec![String::from("#")];
-    let lex_comment = fmap(f, Parser::token(comment_ident));
-    let lex_comment = applicative(lex_comment, not_newline);
-    let lex_comment = applicative(lex_comment, lex_whitespace.clone());
 
     let identifier = {
         // https://nix.dev/manual/nix/2.28/language/identifiers.html
@@ -184,19 +162,19 @@ fn lex_tokens(input: &[String]) -> Vec<Token> {
         };
 
         let g = move |t: String|
-            move |cs: Vec<Vec<String>>| {
+            move |cs: Vec<String>| {
                 let t = t.clone();
                 let cs = cs.clone();
-                [vec![t], cs.into_iter().flatten().collect::<Vec<String>>()].concat()
+                [vec![t], cs].concat()
         };
 
-        let path_chars = greedy(Parser::satisfy(is_path_char));
+        let path_chars = Parser::satisfy(is_path_char);
 
         let sub_parser = fmap(g, Parser::symbol(String::from("/")));
-        let sub_parser = applicative(sub_parser, greedy1(path_chars.clone()));
+        let sub_parser = applicative(sub_parser.clone(), greedy1(path_chars.clone()));
 
-        let parser = fmap(f, path_chars);
-        let parser = applicative(parser, greedy1(sub_parser));
+        let parser = fmap(f, greedy(path_chars.clone()));
+        let parser = applicative(parser, greedy1(sub_parser.clone()));
         applicative(parser, option(Parser::symbol(String::from("/")), String::from("")))
     };
 
@@ -249,8 +227,8 @@ fn lex_tokens(input: &[String]) -> Vec<Token> {
             parser: Arc::new(move |input: &[String]| {
                 let (word, token) = key_pair.clone();
                 // ex ["r","e","c"];
-                if input[..word.len()]
-                    == word.chars().map(|c| c.to_string()).collect::<Vec<String>>()
+                if let Some(chars) = input.get(..word.len()) &&
+                    chars == word.chars().map(|c| c.to_string()).collect::<Vec<String>>()
                 {
                     vec![(token, &input[word.len()..])]
                 } else {
@@ -336,34 +314,55 @@ fn lex_tokens(input: &[String]) -> Vec<Token> {
     );
 
     // parse and ignore all comments
+    
+    /// Returns True for any Unicode space character, and the control characters
+    /// , "\f", "\v" are not supported by rust, lets hope this doesn't break!
+    fn is_space(string: &String) -> bool {
+        ["\t", "\n", "\r", " "].contains(&&string[..])
+    }
+    // can be nothing
+    let lex_whitespace = greedy(Parser::satisfy(is_space));
+
+    let not_newline = greedy(Parser::satisfy(|c| c != "\n"));
+
+    let lex_comment = {
+        let f = move |t: Vec<String>| move |cs: Vec<String>| {
+            let t = t.clone();
+            let cs = cs.clone();
+            move |_| {
+                let t = t.clone(); let cs = cs.clone();
+                [t.clone(), cs].concat()
+            }
+        };
+
+        let lex_comment = fmap(f, Parser::token(vec![String::from("#")]));
+        let lex_comment = applicative(lex_comment, not_newline);
+        applicative(lex_comment, lex_whitespace.clone())
+    };
+
     let l_comments = greedy(lex_comment.clone());
 
-    let l_tokens = fmap(ignore_whitespace, lex_token.clone());
-    let l_tokens = applicative(l_tokens, lex_whitespace.clone());
+    let final_parser = {
+        let l_tokens = fmap(ignore_whitespace, lex_token.clone());
+        let l_tokens = applicative(l_tokens, lex_whitespace.clone());
 
-    let parser = fmap(ignore_comments, l_comments.clone());
-    let parser = applicative(parser, l_tokens.clone());
-    let parser = greedy(parser);
+        let parser = fmap(ignore_comments, l_comments.clone());
+        let parser = applicative(parser, l_tokens.clone());
 
-    // let final_parser = fmap(ignore_all_sans_tokens, lex_whitespace.clone());
-    // let final_parser = applicative(final_parser, parser.clone());
-    // let final_parser = applicative(final_parser, l_comments.clone());
-    // // let final_parser = applicative(final_parser, Parser::eof());
+        let final_parser = fmap(ignore_all_sans_tokens, lex_whitespace.clone());
+        let final_parser = applicative(final_parser, greedy(parser.clone()));
+        let final_parser = applicative(final_parser, l_comments.clone());
+        applicative(final_parser, Parser::eof())
+    };
     // let final_parser = applicative(final_parser, Parser::succeed(()));
 
 
-    let tmp = lex_whitespace.clone().run(input);
-    // let tmp = double_quotes.clone().run(tmp[0].1);
-    // let tmp = string_literal.clone().run(tmp[0].1);
-    // let tmp = single_quotes.clone().run(tmp[0].1);
-    let tmp = parser.clone().run(tmp[0].1);
-    // let tmp = is_str_char(&String::from("\""));
-    // let tmp = quotes.clone().run(&tmp[0].1);
-    println!("res {:?}", tmp[0].0);
-    println!("left {:?}", &tmp[0].1[..15]);
-    println!("num parses {:?}", tmp.len());
-    // println!("tmp {:?}", tmp);
+    // let tmp = lex_whitespace.clone().run(input);
+    // let tmp = parser.clone().run(tmp[0].1);
+    
+    // println!("res {:?}", tmp[0].0);
+    // println!("left {:?}", &tmp[0].1[..15]);
+    // println!("num parses {:?}", tmp.len());
 
-    // final_parser.run(input)[0].0.clone()
-    todo!()
+    final_parser.run(input)[0].0.clone()
 }

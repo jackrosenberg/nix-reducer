@@ -8,6 +8,7 @@
 }:
 
 let
+  ${"haha"} = "${"haha ${let a = 12; in {} }"}";
   inherit (lib.types)
     attrsOf
     bool
