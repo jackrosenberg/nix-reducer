@@ -16,9 +16,9 @@ use crate::types::{Keyword, Operator, Punctuation, Token, TypePrimitive};
 
 fn main() {
     // take in command line args
-    // let args: Vec<String> = env::args().collect();
-    // let path = &args[1];
-    let path = "./example.nix";
+    let args: Vec<String> = env::args().collect();
+    let path = &args[1];
+    // let path = "./example.nix";
     // println!("path '{}'", path);
 
     let contents = fs::read_to_string(path)
