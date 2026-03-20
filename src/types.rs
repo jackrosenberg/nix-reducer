@@ -29,15 +29,15 @@ pub enum Punctuation {
 
 #[derive(Clone, Copy, Debug)]
 pub enum Operator {
-    LEq,  // LogicalEquals
-    LNEq, // LogicalNotEquals
-    LNeg, // LogicalNegate
-    LAnd, // logical and
-    LOr,  // logical or
-    LImpl, // logical implies
-    LessEq,  // LessThanEquals
+    LEq,    // LogicalEquals
+    LNEq,   // LogicalNotEquals
+    LNeg,   // LogicalNegate
+    LAnd,   // logical and
+    LOr,    // logical or
+    LImpl,  // logical implies
+    LessEq, // LessThanEquals
     GrEq,   // GreatherThanEquals
-    Assign,  // GreatherThanEquals
+    Assign, // GreatherThanEquals
     Update,
     Concat,
     PipeFrom, //REQUIREEXPERIMENTALFEATURE
@@ -53,7 +53,7 @@ pub enum TypePrimitive {
     Identifier(String),
     Path(String),
     Null(NULL),
-    InterpolationElement(String)
+    InterpolationElement(String),
 }
 
 #[derive(Clone, Debug)]

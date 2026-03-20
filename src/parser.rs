@@ -4,7 +4,7 @@ use std::{
 };
 
 pub struct Parser<'a, Sym, Res> {
-    pub parser: Arc<dyn Fn(&'a [Sym]) -> Vec<(Res, &'a[Sym])> + 'a>,
+    pub parser: Arc<dyn Fn(&'a [Sym]) -> Vec<(Res, &'a [Sym])> + 'a>,
 }
 
 impl<'a, Sym, Res> Clone for Parser<'a, Sym, Res> {
@@ -39,9 +39,9 @@ where
     }
 }
 
-impl<'a, Sym> Parser<'a, Sym, ()> 
+impl<'a, Sym> Parser<'a, Sym, ()>
 where
-    Sym: Clone + Debug
+    Sym: Clone + Debug,
 {
     /// succeed only when find end of file
     pub fn eof() -> Self {
@@ -53,7 +53,7 @@ where
                 } else {
                     (Parser::empty().parser)(input)
                 }
-            })
+            }),
         }
     }
 }
@@ -137,7 +137,7 @@ where
             match &symb.to_string()[..] {
                 "{" => "}",
                 "}" => "{",
-                _   => ""
+                _ => "",
             }
         }
         Self {
@@ -145,21 +145,19 @@ where
                 let mut depth = 0;
                 for (i, s) in input.iter().enumerate() {
                     if s == &a {
-                        if depth == 0 { 
-                            return vec![(input[..=i].to_vec(), &input[i+1..])]
+                        if depth == 0 {
+                            return vec![(input[..=i].to_vec(), &input[i + 1..])];
                         }
-                        depth -= 1; 
-                    }
-                    else if s.to_string() == opposite(a.to_string()) {
+                        depth -= 1;
+                    } else if s.to_string() == opposite(a.to_string()) {
                         depth += 1;
                     }
                 }
                 // fail
                 Parser::empty().run(input)
-            })
+            }),
         }
     }
-
 }
 
 // parser combinators
@@ -402,8 +400,11 @@ where
         .fold(Parser::empty(), |acc, elem| biased_choice(acc, elem))
 }
 
-/// biased_choice to take as many p, until one q is found 
-pub fn greedy_until<'a, Sym, Res>(p: Parser<'a, Sym, Res>, q: Parser<'a, Sym, Res>) -> Parser<'a, Sym, Vec<Res>>
+/// biased_choice to take as many p, until one q is found
+pub fn greedy_until<'a, Sym, Res>(
+    p: Parser<'a, Sym, Res>,
+    q: Parser<'a, Sym, Res>,
+) -> Parser<'a, Sym, Vec<Res>>
 where
     Sym: Clone + 'a,
     Res: Clone + 'a,
@@ -426,8 +427,8 @@ where
                 fmap(|e| vec![e], q.clone())
             } else {
                 applicative(fmap(f, p.clone()), greedy_until(p.clone(), q.clone()))
-            }.run(xs)
+            }
+            .run(xs)
         }),
     }
 }
-
