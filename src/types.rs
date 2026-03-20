@@ -48,7 +48,7 @@ pub enum Operator {
 pub enum TypePrimitive {
     Integer(usize),
     Float(f64),
-    Boolean(bool),
+    Bool(bool),
     String(String),
     Identifier(String),
     Path(String),

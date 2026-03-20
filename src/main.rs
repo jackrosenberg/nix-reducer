@@ -91,6 +91,7 @@ fn lex_tokens(input: &[String]) -> Vec<Token> {
         };
         fmap(f, greedy1(Parser::satisfy(is_digit)))
     };
+    let float = {
         // either (\d)+\.(\d)*, or (\d)*\.(\d)+
         let f = |pre_opt_digits: Vec<String>| {
             let pre_opt_digits = pre_opt_digits.clone();
@@ -118,8 +119,32 @@ fn lex_tokens(input: &[String]) -> Vec<Token> {
         let after_dot = fmap(f, greedy(Parser::satisfy(is_digit)));
         let after_dot = applicative(after_dot, Parser::symbol(String::from(".")));
         let after_dot = applicative(after_dot, greedy1(Parser::satisfy(is_digit)));
-    let float = {
         choice(before_dot, after_dot)
+    };
+
+    let bool = {
+        fmap(
+            |bool: Vec<String>| Token::TypePrimitive(TypePrimitive::Bool(bool
+                .into_iter()
+                .collect::<String>()
+                .parse::<bool>()
+                .expect("bool conversion failed")
+            )),
+            choice(
+                Parser::token(vec![
+                    String::from("t"),
+                    String::from("r"),
+                    String::from("u"),
+                    String::from("e"),
+                ]),
+                Parser::token(vec![
+                    String::from("f"),
+                    String::from("a"),
+                    String::from("l"),
+                    String::from("s"),
+                    String::from("e"),
+                ])
+            ))
     };
 
     let string_literal = {
@@ -341,6 +366,7 @@ fn lex_tokens(input: &[String]) -> Vec<Token> {
     .into_iter()
     .map(|p| lex_keyword(p))
     .collect::<Vec<_>>();
+    lexers.push(bool);
     lexers.push(identifier);
     lexers.insert(0, float.clone()); // must be done before punctuation, otherwise will be read as 2x integer
     lexers.push(integer.clone());
