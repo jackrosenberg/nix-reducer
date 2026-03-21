@@ -122,10 +122,11 @@ where
         Self {
             parser: Arc::new(move |input: &[Sym]| {
                 let k = word.len();
-                if input.is_empty() || input[..k] != word {
-                    vec![]
-                } else {
+                if let Some(chars) = input.get(..k) &&
+                 chars == word {
                     vec![(input[..k].to_vec(), &input[k..])]
+                } else {
+                    vec![]
                 }
             }),
         }
@@ -397,7 +398,8 @@ where
     // check if needs to be swapped, make sure that the empty parser does not
     // go first, since the whole thing will fail
     ps.into_iter()
-        .fold(Parser::empty(), |acc, elem| biased_choice(acc, elem))
+        // .fold(Parser::empty(), |acc, elem| biased_choice(acc, elem)) // too greedy
+        .fold(Parser::empty(), |acc, elem| choice(acc, elem))
 }
 
 /// biased_choice to take as many p, until one q is found

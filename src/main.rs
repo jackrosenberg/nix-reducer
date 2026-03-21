@@ -24,31 +24,28 @@ fn main() {
     let contents = fs::read_to_string(path)
         .expect("Unable to read path ")
         .chars()
-        .map(|c| char::to_string(&c))
         .collect::<Vec<_>>();
 
     // println!("{:?} ", parser.run(&contents));
 
     // println!("{:?} ", contents);
     let tokens = lex_tokens(&contents[..]);
-    println!("{:?} ", tokens);
+    // println!("{:?} ", tokens);
 }
 
-fn lex_tokens(input: &[String]) -> Vec<Token> {
+fn lex_tokens(input: &[char]) -> Vec<Token> {
     let identifier = {
         // https://nix.dev/manual/nix/2.28/language/identifiers.html
         // not going to check that it's not a keyword yet, will do
         // that later if it's needed
-        fn is_ident_start(string: &String) -> bool {
-            let c = string.chars().next().expect("is_ident_start failed");
+        fn is_ident_start(c: char) -> bool {
             matches!(c,
                 'a'..='z' |
                 'A'..='Z' |
                 '_'
             )
         }
-        fn is_ident(string: &String) -> bool {
-            let c = string.chars().next().expect("is_ident failed");
+        fn is_ident(c: char) -> bool {
             matches!(c,
                 'a'..='z' |
                 'A'..='Z' |
@@ -58,29 +55,26 @@ fn lex_tokens(input: &[String]) -> Vec<Token> {
                 '-'
             )
         }
-        let identifier = |ident_start: String| {
-            move |rest: Vec<String>| {
+        let identifier = |ident_start: char| {
+            move |rest: Vec<char>| {
                 let res = format!(
                     "{}{}",
-                    ident_start.clone(),
+                    ident_start,
                     (rest.into_iter().collect::<String>())
                 );
                 Token::TypePrimitive(TypePrimitive::Identifier(res))
             }
         };
-        let identifier = fmap(identifier, Parser::satisfy(is_ident_start));
-        applicative(identifier, greedy(Parser::satisfy(is_ident)))
+        let identifier = fmap(identifier, Parser::satisfy(|c| is_ident_start(*c)));
+        applicative(identifier, greedy(Parser::satisfy(|c| is_ident(*c))))
     };
 
-    fn is_digit(string: &String) -> bool {
-        if let Some(c) = string.chars().next() {
-            return c.is_ascii_digit();
-        }
-        unreachable!();
+    fn is_digit(c: char) -> bool {
+        c.is_ascii_digit()
     }
 
     let integer = {
-        let f = |digits: Vec<String>| {
+        let f = |digits: Vec<char>| {
             Token::TypePrimitive(TypePrimitive::Integer(
                 digits
                     .into_iter()
@@ -89,18 +83,15 @@ fn lex_tokens(input: &[String]) -> Vec<Token> {
                     .expect("integer conversion failed"),
             ))
         };
-        fmap(f, greedy1(Parser::satisfy(is_digit)))
+        fmap(f, greedy1(Parser::satisfy(|c| is_digit(*c))))
     };
     let float = {
         // either (\d)+\.(\d)*, or (\d)*\.(\d)+
-        let f = |pre_opt_digits: Vec<String>| {
-            let pre_opt_digits = pre_opt_digits.clone();
-            move |dot: String| {
+        let f = |pre_opt_digits: Vec<char>| {
+            move |dot: char| {
                 let pre_opt_digits = pre_opt_digits.clone();
-                move |post_opt_digits: Vec<String>| {
+                move |post_opt_digits: Vec<char>| {
                     let pre_opt_digits = pre_opt_digits.clone();
-                    let dot = dot.clone();
-                    let post_opt_digits = post_opt_digits.clone();
                     Token::TypePrimitive(TypePrimitive::Float(
                         [pre_opt_digits, vec![dot], post_opt_digits ]
                             .concat()
@@ -112,64 +103,46 @@ fn lex_tokens(input: &[String]) -> Vec<Token> {
                 }
             }
         };
-        let before_dot = fmap(f, greedy1(Parser::satisfy(is_digit)));
-        let before_dot = applicative(before_dot, Parser::symbol(String::from(".")));
-        let before_dot = applicative(before_dot, greedy(Parser::satisfy(is_digit)));
+        let before_dot = fmap(f, greedy1(Parser::satisfy(|c| is_digit(*c))));
+        let before_dot = applicative(before_dot, Parser::symbol('.'));
+        let before_dot = applicative(before_dot, greedy(Parser::satisfy(|c| is_digit(*c))));
 
-        let after_dot = fmap(f, greedy(Parser::satisfy(is_digit)));
-        let after_dot = applicative(after_dot, Parser::symbol(String::from(".")));
-        let after_dot = applicative(after_dot, greedy1(Parser::satisfy(is_digit)));
+        let after_dot = fmap(f, greedy(Parser::satisfy(|c| is_digit(*c))));
+        let after_dot = applicative(after_dot, Parser::symbol('.'));
+        let after_dot = applicative(after_dot, greedy1(Parser::satisfy(|c| is_digit(*c))));
         choice(before_dot, after_dot)
     };
 
     let bool = {
         fmap(
-            |bool: Vec<String>| Token::TypePrimitive(TypePrimitive::Bool(bool
+            |bool: Vec<char>| Token::TypePrimitive(TypePrimitive::Bool(bool
                 .into_iter()
                 .collect::<String>()
                 .parse::<bool>()
                 .expect("bool conversion failed")
             )),
             choice(
-                Parser::token(vec![
-                    String::from("t"),
-                    String::from("r"),
-                    String::from("u"),
-                    String::from("e"),
-                ]),
-                Parser::token(vec![
-                    String::from("f"),
-                    String::from("a"),
-                    String::from("l"),
-                    String::from("s"),
-                    String::from("e"),
-                ])
+                Parser::token("true".chars().collect::<>()),
+                Parser::token("false".chars().collect::<>()),
             ))
     };
 
     let string_literal = {
         // todo interpolation elems
         // https://nix.dev/manual/nix/2.28/language/string-literals.html
-        fn is_str_char(string: &String) -> bool {
+        fn is_str_char(c: char) -> bool {
             // not allowed to match these chars
-            if let Some(c) = string.chars().next() {
-                // return !matches!(c, '\"' | '\\' | '$')
-                return true;
-            }
-            unreachable!();
+            // return !matches!(c, '\"' | '\\' | '$')
+            true
         }
 
-        fn is_indented_str_char(string: &String) -> bool {
+        fn is_indented_str_char(c: char) -> bool {
             // voodoo
-            if let Some(c) = string.chars().next() {
-                // return !matches!(c, '\'' | '\\' | '$')
-                return true;
-            }
-            unreachable!();
+            // return !matches!(c, '\'' | '\\' | '$')
+            true
         }
-        let string_lit = move |open_quotes: Vec<String>| {
-            let open_quotes = open_quotes.clone();
-            move |rest_including_close_quotes: Vec<Vec<String>>| {
+        let string_lit = move |open_quotes: Vec<char>| {
+            move |rest_including_close_quotes: Vec<Vec<char>>| {
                 Token::TypePrimitive(TypePrimitive::String(format!(
                     "{}{}",
                     open_quotes.clone().into_iter().collect::<String>(),
@@ -181,13 +154,13 @@ fn lex_tokens(input: &[String]) -> Vec<Token> {
             }
         };
 
-        let double_quotes = Parser::token(vec![String::from("\"")]);
-        let two_single_quotes = Parser::token(vec![String::from("\'"); 2]);
+        let double_quotes = Parser::token(vec!['\"']);
+        let two_single_quotes = Parser::token(vec!['\''; 2]);
 
         fn lex_till_end_str_lit<'a>(
-            repeater: Parser<'a, String, Vec<String>>,
-            terminator: Parser<'a, String, Vec<String>>,
-        ) -> Parser<'a, String, Vec<Vec<String>>> {
+            repeater: Parser<'a, char, Vec<char>>,
+            terminator: Parser<'a, char, Vec<char>>,
+        ) -> Parser<'a, char, Vec<Vec<char>>> {
             greedy_until(terminator, repeater)
         }
 
@@ -196,8 +169,8 @@ fn lex_tokens(input: &[String]) -> Vec<Token> {
             applicative(
                 string_literal,
                 lex_till_end_str_lit(
-                    double_quotes.clone(),
-                    fmap(|r| vec![r], Parser::satisfy(is_str_char)),
+                    double_quotes,
+                    fmap(|r| vec![r], Parser::satisfy(|c| is_str_char(*c))),
                 ),
             )
         };
@@ -207,8 +180,8 @@ fn lex_tokens(input: &[String]) -> Vec<Token> {
             applicative(
                 string_literal_indented,
                 lex_till_end_str_lit(
-                    two_single_quotes.clone(),
-                    fmap(|r| vec![r], Parser::satisfy(is_indented_str_char)),
+                    two_single_quotes,
+                    fmap(|r| vec![r], Parser::satisfy(|c| is_indented_str_char(*c))),
                 ),
             )
         };
@@ -217,21 +190,19 @@ fn lex_tokens(input: &[String]) -> Vec<Token> {
     };
 
     let interpolation_elem = {
-        let f = move |t: Vec<String>| {
-            move |cs: Vec<String>| {
-                let t = t.clone();
+        let f = move |t: Vec<char>| {
+            move |cs: Vec<char>| {
                 Token::TypePrimitive(TypePrimitive::InterpolationElement(
-                    [t, cs].concat().into_iter().collect::<String>(),
+                    [t.clone(), cs].concat().into_iter().collect::<String>(),
                 ))
             }
         };
-        let parser = fmap(f, Parser::token(vec![String::from("$"), String::from("{")]));
-        applicative(parser, Parser::greedy_stack_symbol(String::from("}")))
+        let parser = fmap(f, Parser::token("${".chars().collect::<>()));
+        applicative(parser, Parser::greedy_stack_symbol('}'))
     };
 
     let path_literal = {
-        fn is_path_char(string: &String) -> bool {
-            let c = string.chars().next().expect("is_ident_start failed");
+        fn is_path_char(c: char) -> bool {
             matches!(c,
                 'a'..='z' |
                 'A'..='Z' |
@@ -242,22 +213,19 @@ fn lex_tokens(input: &[String]) -> Vec<Token> {
                 '+'
             )
         }
-        let f = move |path_chars: Vec<String>| {
-            let path_chars = path_chars.clone();
-            move |slash_path_chars: Vec<Vec<String>>| {
+        let f = move |path_chars: Vec<char>| {
+            move |slash_path_chars: Vec<Vec<char>>| {
                 let path_chars = path_chars.clone();
-                let slash_path_chars = slash_path_chars.clone();
-                move |opt_slash: String| {
+                move |opt_slash: char| {
                     let path_chars = path_chars.clone();
                     let slash_path_chars = slash_path_chars.clone();
-                    let opt_slash = opt_slash.clone();
                     Token::TypePrimitive(TypePrimitive::Path(
                         [
                             path_chars,
                             slash_path_chars
                                 .into_iter()
                                 .flatten()
-                                .collect::<Vec<String>>(),
+                                .collect::<Vec<char>>(),
                             vec![opt_slash],
                         ]
                         .concat()
@@ -268,24 +236,22 @@ fn lex_tokens(input: &[String]) -> Vec<Token> {
             }
         };
 
-        let g = move |t: String| {
-            move |cs: Vec<String>| {
-                let t = t.clone();
-                let cs = cs.clone();
+        let g = move |t: char| {
+            move |cs: Vec<char>| {
                 [vec![t], cs].concat()
             }
         };
 
-        let path_chars = Parser::satisfy(is_path_char);
+        let path_chars = Parser::satisfy(|c| is_path_char(*c));
 
-        let sub_parser = fmap(g, Parser::symbol(String::from("/")));
-        let sub_parser = applicative(sub_parser.clone(), greedy1(path_chars.clone()));
+        let sub_parser = fmap(g, Parser::symbol('/'));
+        let sub_parser = applicative(sub_parser, greedy1(path_chars.clone()));
 
-        let parser = fmap(f, greedy(path_chars.clone()));
-        let parser = applicative(parser, greedy1(sub_parser.clone()));
+        let parser = fmap(f, greedy(path_chars));
+        let parser = applicative(parser, greedy1(sub_parser));
         applicative(
             parser,
-            option(Parser::symbol(String::from("/")), String::from("")),
+            option(Parser::symbol('/'), ' '), // todo, check if this causes issues
         )
     };
 
@@ -333,13 +299,13 @@ fn lex_tokens(input: &[String]) -> Vec<Token> {
         ("<|", Token::Operator(Operator::PipeInto)),
     ];
 
-    fn gen_key_parser(key_pair: (&'_ str, Token)) -> Parser<'_, String, Token> {
+    fn gen_key_parser(key_pair: (&'_ str, Token)) -> Parser<'_, char, Token> {
         Parser {
-            parser: Arc::new(move |input: &[String]| {
+            parser: Arc::new(move |input: &[char]| {
                 let (word, token) = key_pair.clone();
                 // ex ["r","e","c"];
                 if let Some(chars) = input.get(..word.len())
-                    && chars == word.chars().map(|c| c.to_string()).collect::<Vec<String>>()
+                    && chars == word.chars().collect::<Vec<char>>()
                 {
                     vec![(token, &input[word.len()..])]
                 } else {
@@ -349,7 +315,7 @@ fn lex_tokens(input: &[String]) -> Vec<Token> {
         }
     }
 
-    fn lex_keyword(pairs: Vec<(&'_ str, Token)>) -> Parser<'_, String, Token> {
+    fn lex_keyword(pairs: Vec<(&'_ str, Token)>) -> Parser<'_, char, Token> {
         greedy_choice(
             pairs
                 .iter()
@@ -379,18 +345,17 @@ fn lex_tokens(input: &[String]) -> Vec<Token> {
     fn ignore_whitespace<F1, F2>(f: F1) -> F1
     where
         F1: Fn(Token) -> F2,
-        F2: Fn(Vec<String>) -> Token,
+        F2: Fn(Vec<char>) -> Token,
     {
         f
     }
     let ignore_whitespace = ignore_whitespace(|tk| {
-        let tk = tk.clone();
         move |cms| tk.clone()
     });
 
     fn ignore_comments<F1, F2>(f: F1) -> F1
     where
-        F1: Fn(Vec<Vec<String>>) -> F2,
+        F1: Fn(Vec<Vec<char>>) -> F2,
         F2: Fn(Token) -> Token,
     {
         f
@@ -399,9 +364,9 @@ fn lex_tokens(input: &[String]) -> Vec<Token> {
 
     fn ignore_all_sans_tokens<F1, F2, F3, F4>(f: F1) -> F1
     where
-        F1: Fn(Vec<String>) -> F2,
+        F1: Fn(Vec<char>) -> F2,
         F2: Fn(Vec<Token>) -> F3,
-        F3: Fn(Vec<Vec<String>>) -> F4,
+        F3: Fn(Vec<Vec<char>>) -> F4,
         F4: Fn(()) -> Vec<Token>,
     {
         f
@@ -419,28 +384,25 @@ fn lex_tokens(input: &[String]) -> Vec<Token> {
 
     /// Returns True for any Unicode space character, and the control characters
     /// , "\f", "\v" are not supported by rust, lets hope this doesn't break!
-    fn is_space(string: &String) -> bool {
-        ["\t", "\n", "\r", " "].contains(&&string[..])
+    fn is_space(c: char) -> bool {
+        ['\t', '\n', '\r', ' '].contains(&c)
     }
     // can be nothing
-    let lex_whitespace = greedy(Parser::satisfy(is_space));
+    let lex_whitespace = greedy(Parser::satisfy(|c| is_space(*c)));
 
-    let not_newline = greedy(Parser::satisfy(|c| c != "\n"));
+    let not_newline = greedy(Parser::satisfy(|c| *c != '\n'));
 
     let lex_comment = {
-        let f = move |t: Vec<String>| {
-            move |cs: Vec<String>| {
+        let f = move |t: Vec<char>| {
+            move |cs: Vec<char>| {
                 let t = t.clone();
-                let cs = cs.clone();
                 move |_| {
-                    let t = t.clone();
-                    let cs = cs.clone();
-                    [t.clone(), cs].concat()
+                    [t.clone(), cs.clone()].concat()
                 }
             }
         };
 
-        let lex_comment = fmap(f, Parser::token(vec![String::from("#")]));
+        let lex_comment = fmap(f, Parser::token(vec!['#']));
         let lex_comment = applicative(lex_comment, not_newline);
         applicative(lex_comment, lex_whitespace.clone())
     };
@@ -470,5 +432,6 @@ fn lex_tokens(input: &[String]) -> Vec<Token> {
     // println!("left {:?}", &tmp[0].1[..15]);
     // println!("num parses {:?}", tmp.len());
 
+    println!("{:#?}", final_parser.run(input));
     final_parser.run(input)[0].0.clone()
 }
