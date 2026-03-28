@@ -48,6 +48,11 @@ https://depth-first.com/articles/2021/12/16/a-beginners-guide-to-parsing-in-rust
 
 https://utrechtuniversity.github.io/infob3tc/downloads/MAIN.pdf
 
-https://github.com/NixOS/nix/blob/master/src/libexpr/lexer.l
+~~https://github.com/NixOS/nix/blob/master/src/libexpr/lexer.l~~
+
+https://git.lix.systems/lix-project/lix/src/branch/main/lix/libexpr/parser/grammar.hh
 
 https://nix.dev/manual/nix/2.28/language/index.html
+
+https://ericlippert.com/2012/06/08/red-green-trees/
+
