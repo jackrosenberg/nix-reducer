@@ -56,3 +56,5 @@ https://nix.dev/manual/nix/2.28/language/index.html
 
 https://ericlippert.com/2012/06/08/red-green-trees/
 
+https://rust-analyzer.github.io/book/contributing/syntax.html
+
