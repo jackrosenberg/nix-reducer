@@ -58,3 +58,4 @@ https://ericlippert.com/2012/06/08/red-green-trees/
 
 https://rust-analyzer.github.io/book/contributing/syntax.html
 
+https://m.youtube.com/watch?v=n5LDjWIAByM&pp=ygUUcmVkIGdyZWVuIHBhcnNlIHRyZWU%3D
