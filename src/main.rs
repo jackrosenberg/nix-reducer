@@ -4,26 +4,41 @@ use std::{
     fmt::{self, Display},
     iter,
     sync::Arc,
+    marker::PhantomData
 };
+
+
+/* 
+ green tree:
+    - holds the actual content
+ red tree:
+    - can traverse up the tree
+    - computes the length of each node 
+*/
 
 // token/node uuid
 #[derive(Clone, Copy, Debug)]
 pub struct SyntaxKind(u16);
 
-pub type Node = Arc<NodeData>;
+pub struct Green;
+pub struct Red;
+
+pub type Node<C> = Arc<NodeData<C>>;
 #[derive(Clone, Debug)]
 // either an internal tree node, or a leaf token
-pub struct NodeData {
+pub struct NodeData<C> {
     kind: SyntaxKind,
     // NodeData fields
-    children: Vec<Node>,
+    children: Vec<Node<C>>,
     len: usize,
     // Token fields
     text: Option<String>,
     text_len: Option<usize>,
+
+    _phantom: PhantomData<C>
 }
 
-impl Display for NodeData {
+impl Display for NodeData<Green> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for child in self.children() {
             if child.children().is_empty() {
@@ -36,27 +51,29 @@ impl Display for NodeData {
     }
 }
 
-impl NodeData {
+impl NodeData<Green> {
     /// make a new internal node
-    pub fn new_node(kind: SyntaxKind, children: Vec<Node>) -> Self {
+    pub fn new_node(kind: SyntaxKind, children: Vec<Node<Green>>) -> Self {
         let len: usize = children.iter().map(|child_node| child_node.len()).sum();
-        NodeData {
+        NodeData::<Green> {
             kind,
             children,
             len,
             text: None,
             text_len: None,
+            _phantom: PhantomData,
         }
     }
     // make a new leaf node
     pub fn new_leaf(kind: SyntaxKind, text: String) -> Self {
         let text_len = text.len();
-        NodeData {
+        NodeData::<Green> {
             kind,
             children: vec![],
             len: 0, // todo, check if this can be cleaner
             text: Some(text),
             text_len: Some(text_len),
+            _phantom: PhantomData,
         }
     }
 
@@ -64,7 +81,7 @@ impl NodeData {
         self.kind
     }
 
-    pub fn children(&self) -> &[Node] {
+    pub fn children(&self) -> &[Node<Green>] {
         self.children.as_slice()
     }
 
@@ -86,12 +103,12 @@ impl NodeData {
         None
     }
 
-    pub fn replace_child(&self, idx: usize, new_child: Node) -> Self {
+    pub fn replace_child(&self, idx: usize, new_child: Node<Green>) -> Self {
         assert!(self.children().len() > idx);
 
         let left = self.children().iter().take(idx).cloned();
         let right = self.children().iter().skip(idx + 1).cloned();
-        let children: Vec<Node> = left.chain(iter::once(new_child)).chain(right).collect();
+        let children: Vec<Node<Green>> = left.chain(iter::once(new_child)).chain(right).collect();
 
         Self::new_node(self.kind, children)
     }
