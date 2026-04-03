@@ -1,5 +1,6 @@
-use crate::SyntaxKind;
-
+// token/node uuid
+#[derive(Clone, Copy, Debug)]
+pub struct SyntaxKind(u16);
 // Nodes
 pub const FN: SyntaxKind = SyntaxKind(1);
 pub const NAME: SyntaxKind = SyntaxKind(2);
