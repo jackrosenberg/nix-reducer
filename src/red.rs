@@ -1,95 +1,78 @@
 use std::{
     fmt::{self, Display},
     iter,
+    rc::Rc,
     sync::Arc,
 };
 
-use crate::{
-    kinds::SyntaxKind,
-    green::GreenNode,
-};
+use crate::{green::GreenNode, kinds::SyntaxKind};
 
-pub type RedNode = Arc<RedNodeData>;
+pub type RedNode = Rc<RedNodeData>;
 #[derive(Clone, Debug)]
-// either an internal tree node, or a leaf token
 pub struct RedNodeData {
-    kind: SyntaxKind,
-    // RedNodeData fields
     parent: Option<RedNode>,
+    index_in_parent: usize,
     green: GreenNode,
-    len: usize,
+    text_offset: usize,
 }
 
 impl Display for RedNodeData {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for child in self.children() {
-            if child.children().is_empty() {
-                Display::fmt(child.text().unwrap(), f)?
-            } else {
-                child.fmt(f)?
-            }
-        }
-        Ok(())
+        fmt::Display::fmt(self.green(), f)
     }
 }
 
 impl RedNodeData {
-    /// make a new internal node
-    pub fn new_node(kind: SyntaxKind, children: Vec<RedNode>) -> Self {
-        let len: usize = children.iter().map(|child_node| child_node.len()).sum();
-        RedNodeData {
-            kind,
-            children,
-            len,
-            text: None,
-            text_len: None,
+    pub fn new_root(root: GreenNode) -> RedNode {
+        Rc::new(RedNodeData {
+            parent: None,
+            index_in_parent: 0,
+            text_offset: 0,
+            green: root,
+        })
+    }
+
+    pub fn parent(&self) -> Option<&RedNode> {
+        self.parent.as_ref()
+    }
+
+    pub fn children<'a>(self: &'a RedNode) -> impl Iterator<Item = RedNode> + 'a {
+        let mut offset_in_parent = 0;
+        self.green().children().enumerate().map(move |(index_in_parent, child): (usize, GreenNode)| {
+            let text_offset = self.text_offset() + offset_in_parent;
+            offset_in_parent += child.text_len();
+            Rc::new(RedNodeData {
+                parent: Some(Rc::clone(self)),
+                index_in_parent,
+                green: child,
+                text_offset,
+            })
+        })
+    }
+
+    /// replaces a child and return the new ROOT of tree
+    pub fn replace_child(self: &RedNode, idx: usize, new_child: GreenNode) -> RedNode {
+        let new_green = self.green().replace_child(idx, new_child).into();
+        match &self.parent {
+            Some(parent) => parent.replace_child(self.index_in_parent, new_green),
+            None => RedNodeData::new_root(new_green)
         }
     }
-    // make a new leaf node
-    pub fn new_leaf(kind: SyntaxKind, text: String) -> Self {
-        let text_len = text.len();
-        RedNodeData {
-            kind,
-            children: vec![],
-            len: 0, // todo, check if this can be cleaner
-            text: Some(text),
-            text_len: Some(text_len),
-        }
+
+
+    pub fn green(&self) -> &GreenNode {
+        &self.green
+    }
+
+    pub fn text_len(&self) -> usize {
+        self.green().text_len()
     }
 
     pub fn kind(&self) -> SyntaxKind {
-        self.kind
+        self.green().kind()
     }
 
-    pub fn children(&self) -> &[RedNode] {
-        self.children.as_slice()
-    }
-
-    pub fn len(&self) -> usize {
-        self.len
-    }
-
-    pub fn text(&self) -> Option<&str> {
-        if let Some(a) = &self.text {
-            return Some(a.as_str());
-        }
-        None
-    }
-
-    pub fn text_len(&self) -> Option<usize> {
-        if let Some(a) = &self.text {
-            return Some(a.len());
-        }
-        None
-    }
-
-    pub fn replace_child(&self, idx: usize, new_child: RedNode) -> Self {
-        assert!(self.children().len() > idx);
-
-        let left = self.children().iter().take(idx).cloned();
-        let right = self.children().iter().skip(idx + 1).cloned();
-        let children: Vec<RedNode> = left.chain(iter::once(new_child)).chain(right).collect();
-
-        Self::new_node(self.kind, children)
+    pub fn text_offset(&self) -> usize {
+        self.text_offset
     }
 }

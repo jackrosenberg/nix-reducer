@@ -11,18 +11,17 @@ pub type GreenNode = Arc<GreenNodeData>;
 // either an internal tree node, or a leaf token
 pub struct GreenNodeData {
     kind: SyntaxKind,
-    // GreenNodeData fields
+    text_len: usize, // either the token length, or the sum of the token lengths
+    // NodeData fields
     children: Vec<GreenNode>,
-    len: usize,
     // Token fields
     text: Option<String>,
-    text_len: Option<usize>,
 }
 
 impl Display for GreenNodeData {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for child in self.children() {
-            if child.children().is_empty() {
+            if child.children.is_empty() {
                 Display::fmt(child.text().unwrap(), f)?
             } else {
                 child.fmt(f)?
@@ -35,13 +34,15 @@ impl Display for GreenNodeData {
 impl GreenNodeData {
     /// make a new internal node
     pub fn new_node(kind: SyntaxKind, children: Vec<GreenNode>) -> Self {
-        let len: usize = children.iter().map(|child_node| child_node.len()).sum();
+        let text_len: usize = children
+            .iter()
+            .map(|child_node| child_node.text_len())
+            .sum();
         GreenNodeData {
             kind,
             children,
-            len,
             text: None,
-            text_len: None,
+            text_len,
         }
     }
     // make a new leaf node
@@ -50,9 +51,8 @@ impl GreenNodeData {
         GreenNodeData {
             kind,
             children: vec![],
-            len: 0, // todo, check if this can be cleaner
             text: Some(text),
-            text_len: Some(text_len),
+            text_len,
         }
     }
 
@@ -60,12 +60,8 @@ impl GreenNodeData {
         self.kind
     }
 
-    pub fn children(&self) -> &[GreenNode] {
-        self.children.as_slice()
-    }
-
-    pub fn len(&self) -> usize {
-        self.len
+    pub fn children(&self) -> impl Iterator<Item = GreenNode> {
+        self.children.iter().cloned()
     }
 
     pub fn text(&self) -> Option<&str> {
@@ -75,18 +71,15 @@ impl GreenNodeData {
         None
     }
 
-    pub fn text_len(&self) -> Option<usize> {
-        if let Some(a) = &self.text {
-            return Some(a.len());
-        }
-        None
+    pub fn text_len(&self) -> usize {
+        self.text_len
     }
 
     pub fn replace_child(&self, idx: usize, new_child: GreenNode) -> Self {
-        assert!(self.children().len() > idx);
+        assert!(self.children.len() > idx);
 
-        let left = self.children().iter().take(idx).cloned();
-        let right = self.children().iter().skip(idx + 1).cloned();
+        let left = self.children().take(idx);
+        let right = self.children().skip(idx + 1);
         let children: Vec<GreenNode> = left.chain(iter::once(new_child)).chain(right).collect();
 
         Self::new_node(self.kind, children)
