@@ -1,3 +1,5 @@
+## Since i have moved to codeberg, i will not be updating this repo here anymore. New repo [here](https://codeberg.org/jackr/nix-reducer).
+
 Usage: 
 
 1. run on a file: `nix-reduce /etc/nixos/mods/panglolin.nix`
